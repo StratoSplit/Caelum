@@ -1,0 +1,173 @@
+/* Reset styling */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  background-color: #f4f4f4;
+  color: #333;
+}
+
+.container {
+  display: flex;
+  gap: 20px;
+  padding: 20px;
+}
+
+/* Navigation Bar */
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  background-color: #333;
+  padding: 10px;
+  color: white;
+}
+
+.nav-left, .nav-right {
+  display: flex;
+}
+
+.nav-btn {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 14px;
+  padding: 8px 12px;
+  height: 40px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.nav-btn:hover {
+  background-color: #555;
+  border-radius: 5px;
+}
+
+.blue-btn {
+  background-color: #007bff;
+  color: white;
+  border-radius: 5px;
+}
+
+.red-btn {
+  background-color: #dc3545;
+  color: white;
+  border-radius: 5px;
+}
+
+.clear-btn {
+  background-color: #ffc107;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.clear-btn:hover {
+  background-color: #e0a800;
+}
+
+/* Master Speaker Panel */
+.master-speaker {
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  padding: 15px;
+  width: 200px;
+  text-align: center;
+}
+
+.master-speaker h3 {
+  font-size: 18px;
+  margin-bottom: 10px;
+}
+
+#masterVolume {
+  width: 100%;
+  margin-top: 10px;
+}
+
+/* Channel Sliders Panel */
+.channel-sliders {
+  flex: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.channel {
+  background-color: #e0e0e0;
+  border-radius: 5px;
+  padding: 10px;
+  text-align: center;
+  width: 120px;
+}
+
+.toggle-btn.off {
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 3px;
+  padding: 5px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.toggle-btn.on {
+  background-color: #28a745;
+  color: white;
+}
+
+.channel-slider, .panning-slider {
+  width: 100%;
+  margin-top: 5px;
+}
+
+/* Configuration Section Boxed */
+.config-section.boxed {
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  padding: 15px;
+  width: 200px;
+  text-align: center;
+}
+
+.config-section h3 {
+  font-size: 16px;
+  font-weight: bold;
+  margin: 10px 0 5px;
+}
+
+.active-channels-space {
+  margin-bottom: 15px;
+}
+
+.config-input,
+.config-select {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  font-size: 14px;
+}
+
+.styled-save-btn {
+  background-color: #4CAF50;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.styled-save-btn:hover {
+  background-color: #45a049;
+}

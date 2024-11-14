@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Audio Configuration</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <!-- Top Navigation Bar -->
+  <nav class="navbar">
+    <div class="nav-left">
+      <button class="nav-btn">File</button>
+      <button class="nav-btn">Tools</button>
+      <button class="nav-btn">Circuits</button>
+      <button class="nav-btn">Help</button>
+    </div>
+    <div class="nav-right">
+      <button class="nav-btn blue-btn" onclick="muteAll()">Mute All</button>
+      <button class="nav-btn blue-btn" onclick="cancelMute()">Cancel Mute</button>
+      <button class="nav-btn clear-btn" onclick="clearConfiguration()">Clear Configuration</button>
+      <button class="nav-btn">Settings</button>
+      <button class="nav-btn red-btn">Log Out</button>
+    </div>
+  </nav>
+
+  <!-- Main Container -->
+  <div class="container">
+    <!-- Master Volume Control -->
+    <div class="master-speaker">
+      <h3>Master Volume</h3>
+      <label>Volume:</label>
+      <input type="range" id="masterVolume" min="0" max="1" step="0.01" oninput="adjustMasterVolume(this.value)">
+    </div>
+
+    <!-- Channel Controls Panel -->
+    <div class="channel-sliders">
+      <% for (let i = 1; i <= 10; i++) { %>
+        <div class="channel" id="channel<%= i %>">
+          <h4>Channel <%= i %></h4>
+          <button class="toggle-btn off" id="toggleButton<%= i %>" onclick="toggleChannel(<%= i %>)">Off</button>
+          <label>Volume:</label>
+          <input type="range" class="channel-slider" id="volume<%= i %>" min="0" max="1" step="0.01" oninput="adjustVolume(<%= i - 1 %>, this.value)">
+          <label>Panning:</label>
+          <input type="range" class="panning-slider" id="pan<%= i %>" min="-1" max="1" step="0.01" oninput="adjustPanning(<%= i - 1 %>, this.value)">
+        </div>
+      <% } %>
+    </div>
+
+    <!-- Configuration Column with Active Channels Space -->
+    <div class="config-section boxed">
+      <div class="active-channels-list">
+        <h3>Active Channels</h3>
+        <div id="activeChannelsContainer" class="active-channels-space">
+          <% for (let i = 1; i <= 10; i++) { %>
+            <div id="activeChannel<%= i %>" class="active-channel" style="display: none;">
+              <span>Channel <%= i %></span>
+              <button class="mute-btn" onclick="toggleMuteChannel(<%= i %>)">Mute</button>
+            </div>
+          <% } %>
+        </div>
+      </div>
+
+      <!-- Save Configuration Section -->
+      <h3>Save Configuration</h3>
+      <input type="text" id="configName" class="config-input" placeholder="Configuration Name">
+      <button class="save-btn styled-save-btn" onclick="saveConfiguration()">Save Configuration</button>
+
+      <!-- Load Configuration Dropdown -->
+      <h3>Load Configuration</h3>
+      <select id="configurationsDropdown" class="config-select" onchange="loadConfiguration(this.value)">
+        <option value="">Select a configuration...</option>
+      </select>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/client.js"></script>
+</body>
+</html>
