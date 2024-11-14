@@ -1,7 +1,7 @@
 # ./audio_stream/Dockerfile
-FROM node:14
+FROM node:23
 
-WORKDIR /usr/src/audio_stream
+WORKDIR /usr/src/app/
 
 COPY package*.json ./
 RUN npm install

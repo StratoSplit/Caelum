@@ -5,9 +5,8 @@ const socketIo = require('socket.io');
 const path = require('path');
 const LogInCollection = require('./db').default;
 const bodyParser = require('body-parser');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const session = require('express-session');
-const token = require('crypto').randomBytes(64).toString('hex');
 
 const app = express();
 const HTTP_PORT = 8000;
