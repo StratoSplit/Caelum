@@ -2,7 +2,7 @@ name: Jest testing
 
 on:
  push:
-    branches: [ "main" ]
+    branches: [ "main", "github-workflows" ]
  pull_request:
     branches: [ "main" ]
 
@@ -19,11 +19,8 @@ jobs:
         with:
           node-version: '14'
 
-      - name: Change to app directory
-        run: cd app
-
       - name: Install dependencies
-        run: npm install
+        run: cd app && npm install
 
       - name: Run Jest tests
-        run: npm test
+        run: cd app && npm test
