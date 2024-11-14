@@ -19,7 +19,9 @@
       <button class="nav-btn blue-btn" onclick="cancelMute()">Cancel Mute</button>
       <button class="nav-btn clear-btn" onclick="clearConfiguration()">Clear Configuration</button>
       <button class="nav-btn">Settings</button>
-      <button class="nav-btn red-btn">Log Out</button>
+      <form id="logoutForm" action="/logout" method="POST">
+        <button type="submit" class="nav-btn red-btn">Log Out</button>
+      </form>
     </div>
   </nav>
 

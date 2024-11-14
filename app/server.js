@@ -3,6 +3,11 @@ const http = require('http');
 const express = require('express');
 const socketIo = require('socket.io');
 const path = require('path');
+const LogInCollection = require('./db').default;
+const bodyParser = require('body-parser');
+const bcrypt = require('bcrypt');
+const session = require('express-session');
+const token = require('crypto').randomBytes(64).toString('hex');
 
 const app = express();
 const HTTP_PORT = 8000;
@@ -25,13 +30,34 @@ const SOCKET_EVENTS = [
   'audio-stream-6', 'audio-stream-7', 'audio-stream-8', 'audio-stream-9', 'audio-stream-10'
 ];
 
+// Configure session middleware
+app.use(session({
+  secret: 'secret',
+  resave: false,
+  saveUninitialized: true,
+  cookie: { secure: false } // Set to true if using HTTPS
+}));
+
+// Middleware to check if user is logged in
+function checkAuth(req, res, next) {
+  if (req.session.user) {
+    next();
+  } else {
+    res.redirect('/login');
+  }
+}
+
 // Set EJS as the view engine
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
-app.get('/', (req, res) => res.render('index'));
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+
+app.get('/login', (req, res) => res.render('login'));
+app.get('/register', (req, res) => res.render('register'));
 
 // Create HTTP server and WebSocket
 const server = http.createServer(app);
@@ -64,6 +90,63 @@ function startRTPListener({ address, port }, streamEvent) {
 // Start an RTP listener for each multicast group
 multicastGroups.forEach((group, index) => {
   startRTPListener(group, SOCKET_EVENTS[index]);
+});
+
+// Handle App POST request
+app.post('/register', async (req, res) => {
+  const { username, plain_password } = req.body;
+
+  const saltRounds = 10;
+
+  const password = await bcrypt.hash(plain_password, saltRounds);
+
+  const data = new LogInCollection({
+    username,
+    password
+  });
+
+  try {
+    await data.save();
+    console.log("Record inserted successfully");
+    res.redirect('/login');
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error inserting record");
+  }
+});
+
+app.post('/login', async (req, res) => {
+  const { username, password } = req.body;
+
+  try {
+    const user = await LogInCollection.findOne({ username });
+    if (user && await bcrypt.compare(password, user.password)) {
+      req.session.user = { username: user.username }; // Assign user session
+      res.status(201).redirect('/');
+    } else {
+      res.status(401).send("Invalid username or password");
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error during login");
+  }
+});
+
+// Apply the middleware to the root route
+app.get('/', checkAuth, (req, res) => {
+  res.render('index', { user: req.session.user }); // Pass user session to the view
+});
+
+// Handle logout request
+app.post('/logout', (req, res) => {
+  req.session.destroy((err) => {
+    if (err) {
+      console.error(err);
+      res.status(500).send("Error during logout");
+    } else {
+      res.redirect('/login');
+    }
+  });
 });
 
 // Start the HTTP server
