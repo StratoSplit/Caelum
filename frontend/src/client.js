@@ -1,3 +1,5 @@
+import io from 'socket.io-client';
+
 const audioContexts = Array.from({ length: 10 }, () => new AudioContext());
 const gainNodes = audioContexts.map(ctx => ctx.createGain());
 const panNodes = audioContexts.map(ctx => ctx.createStereoPanner());
@@ -12,11 +14,15 @@ let masterVolume = 0.5; // Initial master volume
 async function initializeAudioWorklet(streamIndex) {
   if (!audioContexts[streamIndex]) return;
 
-  await audioContexts[streamIndex].audioWorklet.addModule('/audio-processor.js');
-  audioWorkletNodes[streamIndex] = new AudioWorkletNode(audioContexts[streamIndex], 'pcm-processor');
-  audioWorkletNodes[streamIndex].connect(gainNodes[streamIndex]);
-  gainNodes[streamIndex].connect(panNodes[streamIndex]);
-  panNodes[streamIndex].connect(audioContexts[streamIndex].destination);
+  try {
+    await audioContexts[streamIndex].audioWorklet.addModule('/audio-processor.js');
+    audioWorkletNodes[streamIndex] = new AudioWorkletNode(audioContexts[streamIndex], 'pcm-processor');
+    audioWorkletNodes[streamIndex].connect(gainNodes[streamIndex]);
+    gainNodes[streamIndex].connect(panNodes[streamIndex]);
+    panNodes[streamIndex].connect(audioContexts[streamIndex].destination);
+  } catch (error) {
+    console.error(`Failed to load audio worklet module for stream ${streamIndex}:`, error);
+  }
 }
 
 // Display temporary notification message
@@ -254,3 +260,17 @@ events.forEach((event, index) => {
     }
   });
 });
+
+export {
+  muteAll,
+  cancelMute,
+  clearConfiguration,
+  adjustMasterVolume,
+  adjustVolume,
+  adjustPanning,
+  toggleChannel,
+  toggleMuteChannel,
+  saveConfiguration,
+  loadConfiguration,
+  updateConfigurationDropdown
+};
