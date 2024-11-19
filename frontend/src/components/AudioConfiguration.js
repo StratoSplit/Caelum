@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import './AudioConfiguration.css';
 import {
   muteAll,
@@ -12,19 +13,7 @@ import {
   saveConfiguration,
   loadConfiguration,
   updateConfigurationDropdown
-} from {
-  muteAll,
-  cancelMute,
-  clearConfiguration,
-  adjustMasterVolume,
-  adjustVolume,
-  adjustPanning,
-  toggleChannel,
-  toggleMuteChannel,
-  saveConfiguration,
-  loadConfiguration,
-  updateConfigurationDropdown
-} from './client';
+} from '../utils/audioManager';
 
 const AudioConfiguration = () => {
   const channels = Array.from({ length: 10 }, (_, i) => i + 1);
@@ -47,7 +36,8 @@ const AudioConfiguration = () => {
           <button className="nav-btn blue-btn" onClick={cancelMute}>Cancel Mute</button>
           <button className="nav-btn clear-btn" onClick={clearConfiguration}>Clear Configuration</button>
           <button className="nav-btn">Settings</button>
-          <button className="nav-btn red-btn">Log Out</button>
+          <Link to="/logout" className="nav-btn"><button className="nav-btn red-btn">Log Out</button></Link>
+          
         </div>
       </nav>
 
@@ -55,7 +45,7 @@ const AudioConfiguration = () => {
         <div className="master-speaker">
           <h3>Master Volume</h3>
           <label>Volume:</label>
-          <input type="range" id="masterVolume" min="0" max="1" step="0.01" onInput={(e) => adjustMasterVolume(e.target.value)} />
+          <input type="range" id="masterVolume" min="0" max="1" step="0.01" value="0.5" onInput={(e) => adjustMasterVolume(e.target.value)} />
         </div>
 
         <div className="channel-sliders">
@@ -64,9 +54,9 @@ const AudioConfiguration = () => {
               <h4>Channel {i}</h4>
               <button className="toggle-btn off" id={`toggleButton${i}`} onClick={() => toggleChannel(i)}>Off</button>
               <label>Volume:</label>
-              <input type="range" className="channel-slider" id={`volume${i}`} min="0" max="1" step="0.01" onInput={(e) => adjustVolume(i - 1, e.target.value)} />
+              <input type="range" className="channel-slider" id={`volume${i}`} min="0" max="1" step="0.01" value="0.5" onInput={(e) => adjustVolume(i - 1, e.target.value)} />
               <label>Panning:</label>
-              <input type="range" className="panning-slider" id={`pan${i}`} min="-1" max="1" step="0.01" onInput={(e) => adjustPanning(i - 1, e.target.value)} />
+              <input type="range" className="panning-slider" id={`pan${i}`} min="-1" max="1" step="0.01" value="0" onInput={(e) => adjustPanning(i - 1, e.target.value)} />
             </div>
           ))}
         </div>

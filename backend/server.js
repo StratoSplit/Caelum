@@ -1,11 +1,37 @@
 const dgram = require('dgram');
 const http = require('http');
 const express = require('express');
+const cors = require('cors');
 const socketIo = require('socket.io');
-const path = require('path');
+const OperatorModel = require('./Models/Operator');
+const mongoose = require('mongoose');
+const dotenv = require('dotenv');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+
+dotenv.config();
+const uri = process.env.MONGODB_URI;
+const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key';
+
+if (!uri) {
+  console.error("MONGODB_URI is not defined in the environment variables.");
+  process.exit(1);
+}
+
+mongoose.connect(uri)
+.then(() => {
+  console.log("Connected to the database!");
+  })
+.catch((err) => {
+  console.log("Cannot connect to the database!", err);
+  process.exit();
+})
 
 const app = express();
 const HTTP_PORT = 8000;
+
+app.use(cors());
+app.use(express.json());
 
 // Define multicast addresses and ports for each RTP stream
 const multicastGroups = [
@@ -25,13 +51,6 @@ const SOCKET_EVENTS = [
   'audio-stream-6', 'audio-stream-7', 'audio-stream-8', 'audio-stream-9', 'audio-stream-10'
 ];
 
-// Set EJS as the view engine
-app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
-
-// Serve static files
-app.use(express.static(path.join(__dirname, 'public')));
-app.get('/', (req, res) => res.render('index'));
 
 // Create HTTP server and WebSocket
 const server = http.createServer(app);
@@ -64,6 +83,74 @@ function startRTPListener({ address, port }, streamEvent) {
 // Start an RTP listener for each multicast group
 multicastGroups.forEach((group, index) => {
   startRTPListener(group, SOCKET_EVENTS[index]);
+});
+
+// Middleware to verify JWT token
+function authenticateToken(req, res, next) {
+  const token = req.headers['authorization'];
+  if (!token) return res.sendStatus(401);
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.sendStatus(403);
+    req.user = user;
+    next();
+  });
+}
+
+app.post("/register", (req, res) => {
+  const { username, email, password } = req.body;
+  
+  OperatorModel.findOne({ $or: [{ username: username }, { email: email }] })
+    .then(existingOperator => {
+      if (existingOperator) {
+        return res.status(400).json({ message: "Username or email already exists" });
+      }
+      
+      bcrypt.hash(password, 10, (err, hashedPassword) => {
+        if (err) {
+          return res.status(500).json(err);
+        }
+        OperatorModel.create({ username, email, password: hashedPassword })
+          .then(operator => res.json(operator))
+          .catch(err => res.status(400).json(err));
+      });
+    })
+    .catch(err => res.status(500).json(err));
+});
+
+app.post("/login", (req, res) => {
+  const { username, password } = req.body;
+  console.log(`Login attempt for username: ${username}`);
+  
+  OperatorModel.findOne({ username: username })
+    .then(operator => {
+      if (!operator) {
+        console.log(`No operator found for username: ${username}`);
+        return res.json("Failure");
+      }
+      bcrypt.compare(password, operator.password, (err, result) => {
+        if (err) {
+          return res.status(500).json(err);
+        }
+        if (result) {
+          console.log(`Login successful for username: ${username}`);
+          const token = jwt.sign({ username: operator.username }, JWT_SECRET, { expiresIn: '1h' });
+          res.json({ message: "Success", token });
+        } else {
+          console.log(`Incorrect password for username: ${username}`);
+          res.json("Failure");
+        }
+      });
+    })
+    .catch(err => {
+      console.error(`Error during login for username: ${username}`, err);
+      res.status(500).json(err);
+    });
+});
+
+// Protect the audio configuration route
+app.get("/", authenticateToken, (req, res) => {
+  res.json({ message: "Welcome to the audio configuration dashboard!" });
 });
 
 // Start the HTTP server
