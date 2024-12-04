@@ -5,6 +5,7 @@ const socketIo = require('socket.io');
 const path = require('path');
 const bodyParser = require('body-parser');
 const session = require('express-session');
+const bcrypt = require('bcrypt'); // Import bcrypt
 const connectToDatabase = require('./db'); // Import the database connection
 
 const app = express();
@@ -62,8 +63,8 @@ connectToDatabase().then(database => {
 app.get('/login', (req, res) => res.render('login'));
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
-  const user = await db.collection('users').findOne({ username, password }); // Fetch user from the database
-  if (user) {
+  const user = await db.collection('users').findOne({ username }); // Fetch user from the database
+  if (user && await bcrypt.compare(password, user.password)) { // Compare hashed passwords
     req.session.user = user;
     res.redirect('/');
   } else {
@@ -74,8 +75,14 @@ app.post('/login', async (req, res) => {
 app.get('/register', (req, res) => res.render('register'));
 app.post('/register', async (req, res) => {
   const { username, password } = req.body;
-  await db.collection('users').insertOne({ username, password }); // Create user in the database
-  res.redirect('/login');
+  const existingUser = await db.collection('users').findOne({ username }); // Check for existing user
+  if (existingUser) {
+    res.status(400).send('Username already exists'); // Send error if username exists
+  } else {
+    const hashedPassword = await bcrypt.hash(password, 10); // Hash the password
+    await db.collection('users').insertOne({ username, password: hashedPassword }); // Create user in the database
+    res.redirect('/login');
+  }
 });
 
 // Logout route
