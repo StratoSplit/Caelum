@@ -3,6 +3,9 @@ const http = require('http');
 const express = require('express');
 const socketIo = require('socket.io');
 const path = require('path');
+const bodyParser = require('body-parser');
+const session = require('express-session');
+const connectToDatabase = require('./db'); // Import the database connection
 
 const app = express();
 const HTTP_PORT = 8000;
@@ -31,7 +34,58 @@ app.set('views', path.join(__dirname, 'views'));
 
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
-app.get('/', (req, res) => res.render('index'));
+
+// Middleware for parsing request bodies and managing sessions
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(session({
+  secret: 'secret',
+  resave: false,
+  saveUninitialized: true
+}));
+
+// Authentication middleware
+function isAuthenticated(req, res, next) {
+  if (req.session.user) {
+    return next();
+  } else {
+    res.redirect('/login');
+  }
+}
+
+// Connect to the database
+let db;
+connectToDatabase().then(database => {
+  db = database;
+});
+
+// Routes for login and signup
+app.get('/login', (req, res) => res.render('login'));
+app.post('/login', async (req, res) => {
+  const { username, password } = req.body;
+  const user = await db.collection('users').findOne({ username, password }); // Fetch user from the database
+  if (user) {
+    req.session.user = user;
+    res.redirect('/');
+  } else {
+    res.redirect('/login');
+  }
+});
+
+app.get('/register', (req, res) => res.render('register'));
+app.post('/register', async (req, res) => {
+  const { username, password } = req.body;
+  await db.collection('users').insertOne({ username, password }); // Create user in the database
+  res.redirect('/login');
+});
+
+// Logout route
+app.get('/logout', (req, res) => {
+  req.session.destroy();
+  res.redirect('/login');
+});
+
+// Restrict access to the root route
+app.get('/', isAuthenticated, (req, res) => res.render('index'));
 
 // Create HTTP server and WebSocket
 const server = http.createServer(app);
