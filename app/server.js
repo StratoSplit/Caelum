@@ -1,17 +1,26 @@
 const dgram = require('dgram');
-const http = require('http');
+const https = require('https');
+const fs = require('fs');
 const express = require('express');
 const socketIo = require('socket.io');
 const path = require('path');
 const bodyParser = require('body-parser');
 const session = require('express-session');
-const bcrypt = require('bcrypt'); // Import bcrypt
-const connectToDatabase = require('./db'); // Import the database connection
+const bcrypt = require('bcrypt');
+const connectToDatabase = require('./db');
 
 const app = express();
-const HTTP_PORT = 8000;
+const HTTPS_PORT = 443; // HTTPS standard port
+const UDP_TARGET = "239.0.0.11";
+const UDP_PORT = 5000;
 
-// Define multicast addresses and ports for each RTP stream
+// Load SSL certificate and key
+const options = {
+  key: fs.readFileSync('key.pem'), // Your private key
+  cert: fs.readFileSync('cert.pem') // Your certificate
+};
+
+// Define multicast addresses and ports for RTP streams
 const multicastGroups = [
   { address: "239.0.0.1", port: 5001 },
   { address: "239.0.0.2", port: 5003 },
@@ -37,6 +46,7 @@ app.set('views', path.join(__dirname, 'views'));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Middleware for parsing request bodies and managing sessions
+app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(session({
   secret: 'secret',
@@ -63,8 +73,8 @@ connectToDatabase().then(database => {
 app.get('/login', (req, res) => res.render('login'));
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
-  const user = await db.collection('users').findOne({ username }); // Fetch user from the database
-  if (user && await bcrypt.compare(password, user.password)) { // Compare hashed passwords
+  const user = await db.collection('users').findOne({ username });
+  if (user && await bcrypt.compare(password, user.password)) {
     req.session.user = user;
     res.redirect('/');
   } else {
@@ -75,12 +85,12 @@ app.post('/login', async (req, res) => {
 app.get('/register', (req, res) => res.render('register'));
 app.post('/register', async (req, res) => {
   const { username, password } = req.body;
-  const existingUser = await db.collection('users').findOne({ username }); // Check for existing user
+  const existingUser = await db.collection('users').findOne({ username });
   if (existingUser) {
-    res.status(400).send('Username already exists'); // Send error if username exists
+    res.status(400).send('Username already exists');
   } else {
-    const hashedPassword = await bcrypt.hash(password, 10); // Hash the password
-    await db.collection('users').insertOne({ username, password: hashedPassword }); // Create user in the database
+    const hashedPassword = await bcrypt.hash(password, 10);
+    await db.collection('users').insertOne({ username, password: hashedPassword });
     res.redirect('/login');
   }
 });
@@ -94,9 +104,34 @@ app.get('/logout', (req, res) => {
 // Restrict access to the root route
 app.get('/', isAuthenticated, (req, res) => res.render('index'));
 
-// Create HTTP server and WebSocket
-const server = http.createServer(app);
-const io = socketIo(server);
+// Create HTTPS server and WebSocket
+const server = https.createServer(options, app);
+const io = socketIo(server, {
+  cors: {
+    origin: "*", // Adjust this in production
+    methods: ["GET", "POST"]
+  }
+});
+
+// Admin Route to Start/Stop Streams
+app.post('/admin/control-streams', isAuthenticated, (req, res) => {
+  const { action } = req.body;
+  console.log(req.body);
+  if (!["start", "stop"].includes(action)) {
+    return res.status(400).json({ message: "Invalid action." });
+  }
+
+  const message = Buffer.from(action);
+  const client = dgram.createSocket('udp4');
+
+  client.send(message, 0, message.length, UDP_PORT, UDP_TARGET, (err) => {
+    client.close();
+    if (err) {
+      console.error("UDP send error:", err);
+      return res.status(500).json({ message: "Failed to send command." });
+    }
+  });
+});
 
 // Function to start listening to an RTP stream and forward it over WebSocket
 function startRTPListener({ address, port }, streamEvent) {
@@ -112,8 +147,8 @@ function startRTPListener({ address, port }, streamEvent) {
   socket.on('message', (message) => {
     const rtpHeaderSize = 12; // RTP header size is typically 12 bytes
     if (message.length > rtpHeaderSize) {
-      const audioData = message.slice(rtpHeaderSize); // Extract audio payload
-      io.emit(streamEvent, audioData.toString('base64')); // Send Base64-encoded payload
+      const audioData = message.slice(rtpHeaderSize);
+      io.emit(streamEvent, audioData.toString('base64'));
     }
   });
 
@@ -127,7 +162,7 @@ multicastGroups.forEach((group, index) => {
   startRTPListener(group, SOCKET_EVENTS[index]);
 });
 
-// Start the HTTP server
-server.listen(HTTP_PORT, () => {
-  console.log(`HTTP server listening on port ${HTTP_PORT}`);
+// Start the HTTPS server
+server.listen(HTTPS_PORT, () => {
+  console.log(`HTTPS server running on port ${HTTPS_PORT}`);
 });

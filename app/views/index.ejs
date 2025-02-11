@@ -13,6 +13,7 @@
       <button class="nav-btn">Tools</button>
       <button class="nav-btn">Circuits</button>
       <button class="nav-btn">Help</button>
+      <button id="adminButton" class="nav-btn" onclick="toggleAdminPanel()">Admin</button>
     </div>
     <div class="nav-right">
       <button class="nav-btn blue-btn" onclick="muteAll()">Mute All</button>
@@ -22,6 +23,17 @@
       <a href="/logout" class="nav-btn red-btn">Log Out</a>
     </div>
   </nav>
+
+  <!-- Admin Panel (Initially Hidden) -->
+  <div id="adminPanel" class="admin-panel" style="display: none;">
+    <h3>Admin Controls</h3>
+    <label for="adminAction">Stream Control:</label>
+    <select id="adminAction">
+      <option value="start">Start Streams</option>
+      <option value="stop">Stop Streams</option>
+    </select>
+    <button onclick="sendAdminCommand()">Execute</button>
+  </div>
 
   <!-- Main Container -->
   <div class="container">
@@ -46,7 +58,7 @@
       <% } %>
     </div>
 
-    <!-- Configuration Column with Active Channels Space -->
+    <!-- Configuration Section -->
     <div class="config-section boxed">
       <div class="active-channels-list">
         <h3>Active Channels</h3>
