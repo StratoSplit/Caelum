@@ -77,15 +77,39 @@
       <input type="text" id="configName" class="config-input" placeholder="Configuration Name">
       <button class="save-btn styled-save-btn" onclick="saveConfiguration()">Save Configuration</button>
 
-      <!-- Load Configuration Dropdown -->
-      <h3>Load Configuration</h3>
-      <select id="configurationsDropdown" class="config-select" onchange="loadConfiguration(this.value)">
-        <option value="">Select a configuration...</option>
-      </select>
-    </div>
-  </div>
+     <!-- Load Configuration Dropdown -->
+     <h3>Load Configuration</h3>
+     <select id="configurationsDropdown" class="config-select" onchange="loadConfigurationFromServer()">
+       <option value="">Select a configuration...</option>
+     </select>
+   </div>
+ </div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="/client.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      await updateConfigurationDropdown();
+    });
+
+    async function loadConfigurationFromServer() {
+      const dropdown = document.getElementById('configurationsDropdown');
+      const configName = dropdown.value;
+      if (!configName) return;
+
+      try {
+        const response = await fetch(`/get-configuration?name=${encodeURIComponent(configName)}`);
+        if (response.ok) {
+          const config = await response.json();
+          loadConfiguration(configName, config);
+        } else {
+          showNotification("Failed to load configuration from server.");
+        }
+      } catch (error) {
+        console.error('Error loading configuration:', error);
+        showNotification("Error loading configuration from server.");
+      }
+    }
+  </script>
 </body>
 </html>

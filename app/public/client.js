@@ -160,8 +160,8 @@ function clearConfiguration() {
   showNotification("Configuration cleared.");
 }
 
-// Save the current configuration (which channels are active, their volumes, pannings).
-function saveConfiguration() {
+// Save Configuration
+async function saveConfiguration() {
   const configName = document.getElementById('configName').value.trim();
   if (!configName) {
     showNotification("Please enter a configuration name.");
@@ -178,23 +178,38 @@ function saveConfiguration() {
     ),
   };
 
-  savedConfigurations[configName] = config;
-  updateConfigurationDropdown();
-  showNotification(`Configuration "${configName}" saved.`);
+  console.log('Saving configuration:', { configName, configData: config }); // Log the data being sent
+
+  try {
+    const response = await fetch('/save-configuration', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ configName, configData: config })
+    });
+
+    if (response.ok) {
+      showNotification(`Configuration "${configName}" saved to server.`);
+      await updateConfigurationDropdown();
+    } else {
+      showNotification("Failed to save configuration to server.");
+    }
+  } catch (error) {
+    console.error('Error saving configuration:', error);
+    showNotification("Error saving configuration to server.");
+  }
 }
 
-// Load a saved configuration by name and apply it.
-function loadConfiguration(configName) {
-  const config = savedConfigurations[configName];
+// Load Configuration
+function loadConfiguration(configName, config) {
   if (!config) return;
 
-  // Clear current state
-  clearConfiguration();
+  clearConfiguration(); // Clear current state before loading new config
 
-  // Restore channels, volumes, and pannings
   config.activeChannels.forEach((isActive, index) => {
     if (isActive) {
-      toggleChannel(index + 1);
+      toggleChannel(index + 1); // Activate channel if it was active in saved config
       document.getElementById(`volume${index + 1}`).value = config.volumes[index];
       adjustVolume(index, config.volumes[index]);
       document.getElementById(`pan${index + 1}`).value = config.pannings[index];
@@ -205,15 +220,27 @@ function loadConfiguration(configName) {
   showNotification(`Configuration "${configName}" loaded.`);
 }
 
-// Update the configuration dropdown with saved configuration names.
-function updateConfigurationDropdown() {
+// Update Configuration Dropdown
+async function updateConfigurationDropdown() {
   const dropdown = document.getElementById('configurationsDropdown');
   dropdown.innerHTML = '<option value="">Select a configuration...</option>';
-  for (const configName in savedConfigurations) {
-    const option = document.createElement('option');
-    option.value = configName;
-    option.textContent = configName;
-    dropdown.appendChild(option);
+
+  try {
+    const response = await fetch('/get-configurations');
+    if (response.ok) {
+      const configurations = await response.json();
+      configurations.forEach(configName => {
+        const option = document.createElement('option');
+        option.value = configName;
+        option.textContent = configName;
+        dropdown.appendChild(option);
+      });
+    } else {
+      showNotification("Failed to load configurations from server.");
+    }
+  } catch (error) {
+    console.error('Error loading configurations:', error);
+    showNotification("Error loading configurations from server.");
   }
 }
 

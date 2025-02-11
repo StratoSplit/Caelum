@@ -104,6 +104,62 @@ app.get('/logout', (req, res) => {
 // Restrict access to the root route
 app.get('/', isAuthenticated, (req, res) => res.render('index'));
 
+// Save Configuration Route
+app.post('/save-configuration', isAuthenticated, async (req, res) => {
+  const { configName, configData } = req.body;
+  const username = req.session.user.username;
+
+  if (!configName) {
+    return res.status(400).send('Configuration name is required.');
+  }
+
+  console.log('Saving configuration:', { username, configName, configData }); // Log the data being saved
+
+  try {
+    await db.collection('configuration').updateOne(
+      { username, configName },
+      { $set: { configData } },
+      { upsert: true }
+    );
+    res.status(200).send('Configuration saved.');
+  } catch (error) {
+    console.error('Error saving configuration:', error);
+    res.status(500).send('Error saving configuration.');
+  }
+});
+
+// Get Configurations Route
+app.get('/get-configurations', isAuthenticated, async (req, res) => {
+  const username = req.session.user.username;
+
+  try {
+    const configurations = await db.collection('configuration').find({ username }).project({ configName: 1, _id: 0 }).toArray();
+    const configNames = configurations.map(config => config.configName);
+    res.json(configNames);
+  } catch (error) {
+    console.error('Error getting configurations:', error);
+    res.status(500).send('Error getting configurations.');
+  }
+});
+
+// Get Specific Configuration Route
+app.get('/get-configuration', isAuthenticated, async (req, res) => {
+  const username = req.session.user.username;
+  const configName = req.query.name;
+
+  try {
+    const configuration = await db.collection('configuration').findOne({ username, configName });
+    if (configuration) {
+      res.json(configuration.configData);
+    } else {
+      res.status(404).send('Configuration not found.');
+    }
+  } catch (error) {
+    console.error('Error getting configuration:', error);
+    res.status(500).send('Error getting configuration.');
+  }
+});
+
 // Create HTTPS server and WebSocket
 const server = https.createServer(options, app);
 const io = socketIo(server, {
