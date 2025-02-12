@@ -5,11 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Register</title>
     <link rel="stylesheet" href="/stylesheets/style.css">
+    <style>
+        .popup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #f44336;
+            color: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
         <h2>Register</h2>
-        <form action="/register" method="POST">
+        <form id="registerForm" action="/register" method="POST">
             <div class="form-group">
                 <label for="username">Username:</label>
                 <input type="text" id="username" name="username" required>
@@ -22,5 +37,41 @@
         </form>
         <p>Already have an account? <a href="/login">Login here</a></p>
     </div>
+
+    <div id="errorPopup" class="popup">
+        <p id="errorMessage"></p>
+    </div>
+
+    <script>
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            try {
+                const response = await fetch('/register', {
+                    method: 'POST',
+                    body: new URLSearchParams(formData)
+                });
+
+                if (response.redirected || response.headers.get('content-type')?.includes('text/html')) {
+                    // If we got HTML back (the OTP setup page) or a redirect, update the page
+                    document.documentElement.innerHTML = await response.text();
+                } else if (!response.ok) {
+                    // Handle error messages
+                    const error = await response.text();
+                    const popup = document.getElementById('errorPopup');
+                    const errorMessage = document.getElementById('errorMessage');
+                    errorMessage.textContent = error;
+                    popup.style.display = 'block';
+                    
+                    setTimeout(() => {
+                        popup.style.display = 'none';
+                    }, 3000);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        });
+    </script>
 </body>
 </html>

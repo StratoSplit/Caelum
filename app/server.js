@@ -8,6 +8,19 @@ const bodyParser = require('body-parser');
 const session = require('express-session');
 const bcrypt = require('bcrypt');
 const connectToDatabase = require('./db');
+const speakeasy = require('speakeasy');
+const qrcode = require('qrcode');
+
+// Add this helper function after the requires
+function getCurrentOTP(secret) {
+    return speakeasy.totp({
+        secret: secret,
+        encoding: 'base32',
+        step: 30,
+        digits: 6,
+        window: 1
+    });
+}
 
 const app = express();
 const HTTPS_PORT = 443; // HTTPS standard port
@@ -72,27 +85,118 @@ connectToDatabase().then(database => {
 // Routes for login and signup
 app.get('/login', (req, res) => res.render('login'));
 app.post('/login', async (req, res) => {
-  const { username, password } = req.body;
+  const { username, password, otpCode } = req.body;
   const user = await db.collection('users').findOne({ username });
-  if (user && await bcrypt.compare(password, user.password)) {
-    req.session.user = user;
-    res.redirect('/');
-  } else {
-    res.redirect('/login');
+  
+  if (!user || !(await bcrypt.compare(password, user.password))) {
+    return res.status(401).send('Invalid username, password, or OTP code');
   }
+  
+  // Verify OTP with standard settings
+  const verified = speakeasy.totp.verify({
+    secret: user.otpSecret,
+    encoding: 'base32',
+    token: otpCode,
+    step: 30,
+    digits: 6,
+    window: 1
+  });
+  
+  if (!verified) {
+    return res.status(401).send('Invalid username, password, or OTP code');
+  }
+  
+  req.session.user = user;
+  res.status(200).end();
 });
 
 app.get('/register', (req, res) => res.render('register'));
 app.post('/register', async (req, res) => {
-  const { username, password } = req.body;
-  const existingUser = await db.collection('users').findOne({ username });
-  if (existingUser) {
-    res.status(400).send('Username already exists');
-  } else {
-    const hashedPassword = await bcrypt.hash(password, 10);
-    await db.collection('users').insertOne({ username, password: hashedPassword });
-    res.redirect('/login');
+    try {
+        const { username, password } = req.body;
+        console.log('Registration attempt for:', username);
+
+        if (!username || !password) {
+            return res.status(400).send('Username and password are required');
+        }
+
+        // Check for existing user
+        const existingUser = await db.collection('users').findOne({ username });
+        if (existingUser) {
+            return res.status(400).send('Username already exists. Please choose a different username.');
+        }
+
+        // Generate OTP secret with standard settings
+        const secret = speakeasy.generateSecret({
+            name: encodeURIComponent(`Caelum (${username})`),
+            issuer: 'Caelum',
+            length: 20
+        });
+
+        const qrCodeUrl = await qrcode.toDataURL(secret.otpauth_url);
+        const currentOTP = getCurrentOTP(secret.base32);
+
+        console.log('Generated OTP secret for:', username);
+        console.log('Current OTP for debug:', currentOTP);
+        console.log('OTP URL:', secret.otpauth_url); // Debug log
+
+        // Instead of creating the user here, render the OTP setup page
+        return res.render('otp-setup', {
+            qrCodeUrl,
+            tempSecret: secret.base32,
+            username,
+            password,
+            currentOTP,
+            error: null
+        });
+
+    } catch (error) {
+        console.error('Registration error:', error);
+        res.status(500).send('An error occurred during registration');
+    }
+});
+
+// Add OTP verification endpoint
+app.post('/verify-otp', async (req, res) => {
+  const { username, password, otpCode, tempSecret } = req.body;
+  
+  // Verify OTP code with standard settings
+  const verified = speakeasy.totp.verify({
+    secret: tempSecret,
+    encoding: 'base32',
+    token: otpCode,
+    step: 30,
+    digits: 6,
+    window: 1  // Allow 1 step before/after for time drift
+  });
+  
+  if (!verified) {
+    const currentOTP = getCurrentOTP(tempSecret);
+    const secret = { 
+        base32: tempSecret, 
+        otpauth_url: `otpauth://totp/Caelum:${encodeURIComponent(username)}?secret=${tempSecret}&issuer=Caelum&digits=6&period=30` 
+    };
+    const qrCodeUrl = await qrcode.toDataURL(secret.otpauth_url);
+    
+    return res.render('otp-setup', {
+      qrCodeUrl,
+      tempSecret,
+      username,
+      password,
+      currentOTP,
+      error: 'Invalid authentication code. Please try again.'
+    });
   }
+  
+  // Create user with OTP secret
+  const hashedPassword = await bcrypt.hash(password, 10);
+  await db.collection('users').insertOne({
+    username,
+    password: hashedPassword,
+    otpSecret: tempSecret
+  });
+  
+  res.redirect('/login');
 });
 
 // Logout route

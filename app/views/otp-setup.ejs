@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup 2FA</title>
+    <link rel="stylesheet" href="/stylesheets/style.css">
+</head>
+<body>
+    <div class="container">
+        <h2>Setup Two-Factor Authentication</h2>
+
+        <p>1. Scan this QR code with your authenticator app:</p>
+        <img src="<%= qrCodeUrl %>" alt="QR Code">
+        
+        <p>2. Enter the code from your authenticator app to verify:</p>
+        
+        <!-- Development Only - Remove in production -->
+        <div style="background: #ffeb3b; padding: 10px; margin: 10px 0;">
+            <strong>Current Valid OTP (Development Only):</strong> <%= currentOTP %>
+        </div>
+
+        <% if (error) { %>
+            <div style="color: red; margin-bottom: 10px;">
+                <%= error %>
+            </div>
+        <% } %>
+
+        <form action="/verify-otp" method="POST">
+            <div class="form-group">
+                <label for="otpCode">Authentication Code:</label>
+                <input type="text" id="otpCode" name="otpCode" required>
+                <input type="hidden" name="tempSecret" value="<%= tempSecret %>">
+                <input type="hidden" name="username" value="<%= username %>">
+                <input type="hidden" name="password" value="<%= password %>">
+            </div>
+            <button type="submit">Verify and Complete Registration</button>
+        </form>
+    </div>
+</body>
+</html>
