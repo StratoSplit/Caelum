@@ -19,8 +19,8 @@
       <button class="nav-btn blue-btn" onclick="muteAll()">Mute All</button>
       <button class="nav-btn blue-btn" onclick="cancelMute()">Cancel Mute</button>
       <button class="nav-btn clear-btn" onclick="clearConfiguration()">Clear Configuration</button>
-      <button class="nav-btn">Settings</button>
-      <a href="/logout" class="nav-btn red-btn">Log Out</a>
+      <a href="/profile" class="nav-btn">Settings</a>
+      <a href="#" id="logout-link" class="nav-btn red-btn">Log Out</a>
     </div>
   </nav>
 
@@ -111,5 +111,20 @@
       }
     }
   </script>
+  <script type="module">
+    import { register } from 'https://esm.run/@teamhanko/hanko-elements';
+
+    const { hanko } = await register("https://3b78bd3f-f7ae-4ac6-a39b-6de036b37c57.hanko.io");
+
+    document.getElementById("logout-link").addEventListener("click", async (e) => {
+        e.preventDefault();
+        try {
+            await hanko.user.logout();
+            document.location.href = "/login";
+        } catch (error) {
+            console.error('Logout error:', error);
+        }
+    });
+</script>
 </body>
 </html>

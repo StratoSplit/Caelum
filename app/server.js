@@ -5,22 +5,10 @@ const express = require('express');
 const socketIo = require('socket.io');
 const path = require('path');
 const bodyParser = require('body-parser');
-const session = require('express-session');
-const bcrypt = require('bcrypt');
 const connectToDatabase = require('./db');
-const speakeasy = require('speakeasy');
-const qrcode = require('qrcode');
+const cookieParser = require('cookie-parser');
+const dotenv = require('dotenv').config;
 
-// Add this helper function after the requires
-function getCurrentOTP(secret) {
-    return speakeasy.totp({
-        secret: secret,
-        encoding: 'base32',
-        step: 30,
-        digits: 6,
-        window: 1
-    });
-}
 
 const app = express();
 const HTTPS_PORT = 443; // HTTPS standard port
@@ -58,23 +46,8 @@ app.set('views', path.join(__dirname, 'views'));
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Middleware for parsing request bodies and managing sessions
-app.use(express.json());
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(session({
-  secret: 'secret',
-  resave: false,
-  saveUninitialized: true
-}));
-
-// Authentication middleware
-function isAuthenticated(req, res, next) {
-  if (req.session.user) {
-    return next();
-  } else {
-    res.redirect('/login');
-  }
-}
+// Parse incoming request bodies
+app.use(cookieParser());
 
 // Connect to the database
 let db;
@@ -82,136 +55,81 @@ connectToDatabase().then(database => {
   db = database;
 });
 
+async function validateToken(req, res, next) {
+  let token = null;
+  if (
+    req.headers.authorization &&
+    req.headers.authorization.split(" ")[0] === "Bearer"
+  ) {
+    token = req.headers.authorization.split(" ")[1];
+  } else if (req.cookies && req.cookies.hanko) {
+    token = req.cookies.hanko;
+  }
+  if (token === null || token.length === 0) {
+    res.render('login');
+    return;
+  }
+
+  try {
+    response = await fetch(`https://3b78bd3f-f7ae-4ac6-a39b-6de036b37c57.hanko.io/sessions/validate`, {
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      method: "POST",
+      body: JSON.stringify({
+        session_token: token
+      })
+    });
+
+    if (!response.ok) {
+      let error = await response.json();
+      sendError(res, error);
+      return;
+    }
+
+    const session = await response.json()
+
+    if (!session.is_valid) {
+      sendToLogin(res);
+      return;
+    }
+
+  } catch (error) {
+    sendError(res, error)
+    return;
+  }
+
+  next();
+}
+
+function sendError(res, cause) {
+  let error = { message: "Invalid session token" }
+
+  if (cause) {
+    error.cause = cause;
+  }
+
+  res.status(401).send(error)
+}
+
+function sendToLogin(res) {
+  res.render('login');
+}
+
+
+
 // Routes for login and signup
 app.get('/login', (req, res) => res.render('login'));
-app.post('/login', async (req, res) => {
-  const { username, password, otpCode } = req.body;
-  const user = await db.collection('users').findOne({ username });
-  
-  if (!user || !(await bcrypt.compare(password, user.password))) {
-    return res.status(401).send('Invalid username, password, or OTP code');
-  }
-  
-  // Verify OTP with standard settings
-  const verified = speakeasy.totp.verify({
-    secret: user.otpSecret,
-    encoding: 'base32',
-    token: otpCode,
-    step: 30,
-    digits: 6,
-    window: 1
-  });
-  
-  if (!verified) {
-    return res.status(401).send('Invalid username, password, or OTP code');
-  }
-  
-  req.session.user = user;
-  res.status(200).end();
-});
-
-app.get('/register', (req, res) => res.render('register'));
-app.post('/register', async (req, res) => {
-    try {
-        const { username, password } = req.body;
-        console.log('Registration attempt for:', username);
-
-        if (!username || !password) {
-            return res.status(400).send('Username and password are required');
-        }
-
-        // Check for existing user
-        const existingUser = await db.collection('users').findOne({ username });
-        if (existingUser) {
-            return res.status(400).send('Username already exists. Please choose a different username.');
-        }
-
-        // Generate OTP secret with standard settings
-        const secret = speakeasy.generateSecret({
-            name: encodeURIComponent(`Caelum (${username})`),
-            issuer: 'Caelum',
-            length: 20
-        });
-
-        const qrCodeUrl = await qrcode.toDataURL(secret.otpauth_url);
-        const currentOTP = getCurrentOTP(secret.base32);
-
-        console.log('Generated OTP secret for:', username);
-        console.log('Current OTP for debug:', currentOTP);
-        console.log('OTP URL:', secret.otpauth_url); // Debug log
-
-        // Instead of creating the user here, render the OTP setup page
-        return res.render('otp-setup', {
-            qrCodeUrl,
-            tempSecret: secret.base32,
-            username,
-            password,
-            currentOTP,
-            error: null
-        });
-
-    } catch (error) {
-        console.error('Registration error:', error);
-        res.status(500).send('An error occurred during registration');
-    }
-});
-
-// Add OTP verification endpoint
-app.post('/verify-otp', async (req, res) => {
-  const { username, password, otpCode, tempSecret } = req.body;
-  
-  // Verify OTP code with standard settings
-  const verified = speakeasy.totp.verify({
-    secret: tempSecret,
-    encoding: 'base32',
-    token: otpCode,
-    step: 30,
-    digits: 6,
-    window: 1  // Allow 1 step before/after for time drift
-  });
-  
-  if (!verified) {
-    const currentOTP = getCurrentOTP(tempSecret);
-    const secret = { 
-        base32: tempSecret, 
-        otpauth_url: `otpauth://totp/Caelum:${encodeURIComponent(username)}?secret=${tempSecret}&issuer=Caelum&digits=6&period=30` 
-    };
-    const qrCodeUrl = await qrcode.toDataURL(secret.otpauth_url);
-    
-    return res.render('otp-setup', {
-      qrCodeUrl,
-      tempSecret,
-      username,
-      password,
-      currentOTP,
-      error: 'Invalid authentication code. Please try again.'
-    });
-  }
-  
-  // Create user with OTP secret
-  const hashedPassword = await bcrypt.hash(password, 10);
-  await db.collection('users').insertOne({
-    username,
-    password: hashedPassword,
-    otpSecret: tempSecret
-  });
-  
-  res.redirect('/login');
-});
-
-// Logout route
-app.get('/logout', (req, res) => {
-  req.session.destroy();
-  res.redirect('/login');
-});
+app.get('/profile', validateToken, (req, res) => res.render('profile'));
 
 // Restrict access to the root route
-app.get('/', isAuthenticated, (req, res) => res.render('index'));
+app.get('/', validateToken, (req, res) => res.render('index'));
 
 // Save Configuration Route
-app.post('/save-configuration', isAuthenticated, async (req, res) => {
+app.post('/save-configuration', validateToken, async (req, res) => {
   const { configName, configData } = req.body;
-  const username = req.session.user.username;
+  //const username = req.session.user.username;
 
   if (!configName) {
     return res.status(400).send('Configuration name is required.');
@@ -233,8 +151,8 @@ app.post('/save-configuration', isAuthenticated, async (req, res) => {
 });
 
 // Get Configurations Route
-app.get('/get-configurations', isAuthenticated, async (req, res) => {
-  const username = req.session.user.username;
+app.get('/get-configurations', validateToken, async (req, res) => {
+  //const username = req.session.user.username;
 
   try {
     const configurations = await db.collection('configuration').find({ username }).project({ configName: 1, _id: 0 }).toArray();
@@ -247,7 +165,7 @@ app.get('/get-configurations', isAuthenticated, async (req, res) => {
 });
 
 // Get Specific Configuration Route
-app.get('/get-configuration', isAuthenticated, async (req, res) => {
+app.get('/get-configuration', validateToken, async (req, res) => {
   const username = req.session.user.username;
   const configName = req.query.name;
 
@@ -274,7 +192,7 @@ const io = socketIo(server, {
 });
 
 // Admin Route to Start/Stop Streams
-app.post('/admin/control-streams', isAuthenticated, (req, res) => {
+app.post('/admin/control-streams', validateToken, async (req, res) => {
   const { action } = req.body;
   console.log(req.body);
   if (!["start", "stop"].includes(action)) {
@@ -291,6 +209,11 @@ app.post('/admin/control-streams', isAuthenticated, (req, res) => {
       return res.status(500).json({ message: "Failed to send command." });
     }
   });
+});
+
+// Handle 404 errors
+app.use((req, res, next) => {
+  res.status(404).render('404');
 });
 
 // Function to start listening to an RTP stream and forward it over WebSocket
