@@ -71,7 +71,7 @@ async function validateToken(req, res, next) {
   }
 
   try {
-    response = await fetch(`https://3b78bd3f-f7ae-4ac6-a39b-6de036b37c57.hanko.io/sessions/validate`, {
+    response = await fetch(`https://23f835c0-f746-4689-99bb-0dbd777def43.hanko.io/sessions/validate`, {
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json'
