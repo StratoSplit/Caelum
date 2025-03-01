@@ -57,60 +57,91 @@ connectToDatabase().then(database => {
 
 async function validateToken(req, res, next) {
   let token = null;
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.split(" ")[0] === "Bearer"
-  ) {
-    token = req.headers.authorization.split(" ")[1];
+
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+    token = req.headers.authorization.split(' ')[1];
   } else if (req.cookies && req.cookies.hanko) {
     token = req.cookies.hanko;
   }
-  if (token === null || token.length === 0) {
-    res.render('login');
-    return;
+
+  if (!token) {
+    return res.render('login');
   }
 
   try {
-    response = await fetch(`https://23f835c0-f746-4689-99bb-0dbd777def43.hanko.io/sessions/validate`, {
+    const response = await fetch('https://23f835c0-f746-4689-99bb-0dbd777def43.hanko.io/sessions/validate', {
+      method: 'POST',
       headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
       },
-      method: "POST",
-      body: JSON.stringify({
-        session_token: token
-      })
+      body: JSON.stringify({ session_token: token }),
     });
 
     if (!response.ok) {
-      let error = await response.json();
-      sendError(res, error);
-      return;
+      console.error('Session validation failed:', await response.text());
+      return res.redirect('/login');
     }
 
-    const session = await response.json()
-
+    const session = await response.json();
     if (!session.is_valid) {
-      sendToLogin(res);
-      return;
+      return res.redirect('/login');
     }
 
+    // Current user data from session
+    const currentUserData = {
+      userId: session.user_id,
+      username: session.claims.username,
+      email: session.claims.email.address,
+      lastLogin: new Date()
+    };
+
+    try {
+      // Find existing user
+      const existingUser = await db.collection('users').findOne({ userId: currentUserData.userId });
+      
+      if (existingUser) {
+        // Check for changes in email or username
+        const updates = {
+          lastLogin: currentUserData.lastLogin
+        };
+
+        if (existingUser.email !== currentUserData.email) {
+          updates.email = currentUserData.email;
+        }
+        if (existingUser.username !== currentUserData.username) {
+          updates.username = currentUserData.username;
+        }
+
+        // Update user if there are changes
+        if (Object.keys(updates).length > 1) { // more than just lastLogin
+          await db.collection('users').updateOne(
+            { userId: currentUserData.userId },
+            { $set: updates }
+          );
+          console.log('User details updated:', updates);
+        }
+      } else {
+        // Create new user if doesn't exist
+        await db.collection('users').insertOne({
+          ...currentUserData,
+          createdAt: new Date()
+        });
+        console.log('New user created:', currentUserData);
+      }
+
+      req.user = currentUserData;
+      next();
+    } catch (dbError) {
+      console.error('Database error:', dbError);
+      // Continue even if DB operation fails
+      req.user = currentUserData;
+      next();
+    }
   } catch (error) {
-    sendError(res, error)
-    return;
+    console.error('Token validation error:', error);
+    res.redirect('/login');
   }
-
-  next();
-}
-
-function sendError(res, cause) {
-  let error = { message: "Invalid session token" }
-
-  if (cause) {
-    error.cause = cause;
-  }
-
-  res.status(401).send(error)
 }
 
 function sendToLogin(res) {
