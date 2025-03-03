@@ -164,21 +164,19 @@ function clearConfiguration() {
 async function saveConfiguration() {
   const configName = document.getElementById('configName').value.trim();
   if (!configName) {
-    showNotification("Please enter a configuration name.");
+    showNotification('Please enter a configuration name');
     return;
   }
 
   const config = {
-    activeChannels: [...activeChannels],
-    volumes: activeChannels.map((isActive, index) =>
-      isActive ? getVolumeSliderValue(index) : 0
-    ),
-    pannings: activeChannels.map((isActive, index) =>
-      isActive ? getPanningSliderValue(index) : 0
-    ),
+    masterVolume: parseFloat(document.getElementById('masterVolume').value),
+    channels: Array.from({ length: 10 }, (_, i) => ({
+      isActive: activeChannels[i],
+      volume: parseFloat(document.getElementById(`volume${i + 1}`).value),
+      pan: parseFloat(document.getElementById(`pan${i + 1}`).value),
+      isMuted: mutedChannels[i]
+    }))
   };
-
-  console.log('Saving configuration:', { configName, configData: config }); // Log the data being sent
 
   try {
     const response = await fetch('/save-configuration', {
@@ -186,18 +184,23 @@ async function saveConfiguration() {
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ configName, configData: config })
+      body: JSON.stringify({
+        configName,
+        configData: config
+      })
     });
 
-    if (response.ok) {
-      showNotification(`Configuration "${configName}" saved to server.`);
-      await updateConfigurationDropdown();
-    } else {
-      showNotification("Failed to save configuration to server.");
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to save configuration');
     }
+
+    showNotification('Configuration saved successfully');
+    await updateConfigurationDropdown();
   } catch (error) {
-    console.error('Error saving configuration:', error);
-    showNotification("Error saving configuration to server.");
+    console.error('Save configuration error:', error);
+    showNotification(error.message);
   }
 }
 
@@ -205,19 +208,33 @@ async function saveConfiguration() {
 function loadConfiguration(configName, config) {
   if (!config) return;
 
-  clearConfiguration(); // Clear current state before loading new config
+  // Set master volume
+  document.getElementById('masterVolume').value = config.masterVolume;
+  adjustMasterVolume(config.masterVolume);
 
-  config.activeChannels.forEach((isActive, index) => {
-    if (isActive) {
-      toggleChannel(index + 1); // Activate channel if it was active in saved config
-      document.getElementById(`volume${index + 1}`).value = config.volumes[index];
-      adjustVolume(index, config.volumes[index]);
-      document.getElementById(`pan${index + 1}`).value = config.pannings[index];
-      adjustPanning(index, config.pannings[index]);
+  // Clear current state
+  clearConfiguration();
+
+  // Load channel configurations
+  config.channels.forEach((channel, index) => {
+    if (channel.isActive) {
+      toggleChannel(index + 1);
+      
+      const volumeSlider = document.getElementById(`volume${index + 1}`);
+      volumeSlider.value = channel.volume;
+      adjustVolume(index, channel.volume);
+
+      const panSlider = document.getElementById(`pan${index + 1}`);
+      panSlider.value = channel.pan;
+      adjustPanning(index, channel.pan);
+
+      if (channel.isMuted) {
+        toggleMuteChannel(index + 1);
+      }
     }
   });
 
-  showNotification(`Configuration "${configName}" loaded.`);
+  showNotification(`Configuration "${configName}" loaded`);
 }
 
 // Update Configuration Dropdown

@@ -49,6 +49,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Parse incoming request bodies
 app.use(cookieParser());
 
+// Add body parsing middleware
+app.use(express.json());
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+
 // Connect to the database
 let db;
 connectToDatabase().then(database => {
@@ -160,56 +165,78 @@ app.get('/', validateToken, (req, res) => res.render('index'));
 // Save Configuration Route
 app.post('/save-configuration', validateToken, async (req, res) => {
   const { configName, configData } = req.body;
-  //const username = req.session.user.username;
+  const userId = req.user.userId;
 
-  if (!configName) {
-    return res.status(400).send('Configuration name is required.');
+  if (!configName || !configData) {
+    return res.status(400).json({ error: 'Configuration name and data are required.' });
   }
 
-  console.log('Saving configuration:', { username, configName, configData }); // Log the data being saved
-
   try {
-    await db.collection('configuration').updateOne(
-      { username, configName },
-      { $set: { configData } },
+    await db.collection('configurations').updateOne(
+      { userId, configName },
+      {
+        $set: {
+          configData,
+          updatedAt: new Date()
+        },
+        $setOnInsert: {
+          createdAt: new Date()
+        }
+      },
       { upsert: true }
     );
-    res.status(200).send('Configuration saved.');
+
+    console.log('Configuration saved:', { userId, configName });
+    res.status(200).json({ message: 'Configuration saved successfully' });
   } catch (error) {
-    console.error('Error saving configuration:', error);
-    res.status(500).send('Error saving configuration.');
+    console.error('Save configuration error:', error);
+    res.status(500).json({ error: 'Failed to save configuration' });
   }
 });
 
 // Get Configurations Route
 app.get('/get-configurations', validateToken, async (req, res) => {
-  //const username = req.session.user.username;
+  const userId = req.user.userId;
 
   try {
-    const configurations = await db.collection('configuration').find({ username }).project({ configName: 1, _id: 0 }).toArray();
+    const configurations = await db.collection('configurations')
+      .find({ userId })
+      .project({ configName: 1, _id: 0 })
+      .toArray();
+
     const configNames = configurations.map(config => config.configName);
+    console.log('Retrieved configurations:', { userId, count: configNames.length });
     res.json(configNames);
   } catch (error) {
-    console.error('Error getting configurations:', error);
-    res.status(500).send('Error getting configurations.');
+    console.error('Get configurations error:', error);
+    res.status(500).json({ error: 'Failed to retrieve configurations' });
   }
 });
 
 // Get Specific Configuration Route
 app.get('/get-configuration', validateToken, async (req, res) => {
-  const username = req.session.user.username;
+  const userId = req.user.userId;
   const configName = req.query.name;
 
+  if (!configName) {
+    return res.status(400).json({ error: 'Configuration name is required' });
+  }
+
   try {
-    const configuration = await db.collection('configuration').findOne({ username, configName });
-    if (configuration) {
-      res.json(configuration.configData);
-    } else {
-      res.status(404).send('Configuration not found.');
+    const configuration = await db.collection('configurations').findOne(
+      { userId, configName },
+      { projection: { configData: 1, _id: 0 } }
+    );
+
+    if (!configuration) {
+      return res.status(404).json({ error: 'Configuration not found' });
     }
+
+    console.log('Retrieved configuration:', { userId, configName });
+    res.json(configuration.configData);
   } catch (error) {
-    console.error('Error getting configuration:', error);
-    res.status(500).send('Error getting configuration.');
+    console.error('Get configuration error:', error);
+    res.status(500).json({ error: 'Failed to retrieve configuration' });
   }
 });
 
