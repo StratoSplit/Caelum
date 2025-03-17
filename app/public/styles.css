@@ -97,6 +97,12 @@ body {
   margin-top: 10px;
 }
 
+.channel-selection {
+  flex: 2;
+  display: flex;
+  flex-wrap: wrap;
+}
+
 /* Channel Sliders Panel */
 .channel-sliders {
   flex: 2;
@@ -187,7 +193,7 @@ body {
   padding: 20px;
   border-radius: 8px;
   z-index: 1000; /* Ensure it appears above everything */
-  width: 300px;
+  width: 600px;
   display: none; /* Initially hidden */
 }
 

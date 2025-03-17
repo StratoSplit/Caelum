@@ -5,3 +5,6 @@ app/public/.Rhistory
 app/cert.pem
 app/key.pem
 .env
+app/.env
+app/package-lock.json
+app/package.json

@@ -26,13 +26,82 @@
 
   <!-- Admin Panel (Initially Hidden) -->
   <div id="adminPanel" class="admin-panel" style="display: none;">
-    <h3>Admin Controls</h3>
-    <label for="adminAction">Stream Control:</label>
+    <h2>Stream Controls</h2>
+
+    <!-- Channel Selection -->
+    <h4>Channel Selection</h4>
+    <% for (let i = 1; i <= 10; i++) { %>
+      <div class="channel-selection">
+        <label>
+          <input type="checkbox" name="channels" value="<%=i%>"> Channel <%= i %>
+        </label>
+      </div>
+    <% } %>
+
+    <!-- Stream Control -->
+    <label for="adminAction">Stream Command:</label>
     <select id="adminAction">
-      <option value="start">Start Streams</option>
-      <option value="stop">Stop Streams</option>
+      <option value="start">Start</option>
+      <option value="stop">Stop</option>
     </select>
+
+    <!-- Duration Input (Only relevant for Start) -->
+    <label for="streamDuration">Duration(s):</label>
+    <input type="number" id="streamDuration" value="15" min="5" max="120">
+
     <button onclick="sendAdminCommand()">Execute</button>
+
+    <br><br>
+    <h4>Assign Roles</h4>
+    <form action="/assign-role" method="POST">
+      <select name="userId">
+        <% users.forEach(user => { %>
+          <option value="<%= user._id %>"><%= user.username %> (<%= user.role %>)</option>
+        <% }) %>
+      </select>
+      <select name="role">
+        <option value="user">User</option>
+        <option value="admin">Admin</option>
+      </select>
+      <button type="submit">Assign Role</button>
+    </form>
+    <br>
+
+    <h4>Assign User to Team</h4>
+    <form action="/assign-team" method="POST">
+      <select name="userId">
+        <% users.forEach(user => { %>
+          <option value="<%= user._id %>"><%= user.username %></option>
+        <% }) %>
+      </select>
+      <select name="teamId">
+        <% teams.forEach(team => { %>
+          <option value="<%= team._id %>"><%= team.name %></option>
+        <% }) %>
+      </select>
+      <button type="submit">Assign Team</button>
+    </form>
+
+    <br>
+    <h4>Assign Channels to Team</h4>
+    <form action="/assign-numbers" method="POST">
+      <select name="teamId">
+        <% teams.forEach(team => { %>
+          <option value="<%= team._id %>"><%= team.name %></option>
+        <% }) %>
+      </select>
+        <% for (let i = 1; i <= 10; i++) { %>
+          <label class="inline-flex items-center">
+            <input type="checkbox" name="numbers" value="<%= i %>" class="form-checkbox">
+            <span class="ml-2"><%= i %></span>
+          </label>
+        <% } %>
+        <button type="submit">Assign Channels</button>
+    </form>
+  </div>
+  
+
+
   </div>
 
   <!-- Main Container -->
@@ -46,16 +115,23 @@
 
     <!-- Channel Controls Panel -->
     <div class="channel-sliders">
-      <% for (let i = 1; i <= 10; i++) { %>
-        <div class="channel" id="channel<%= i %>">
-          <h4>Channel <%= i %></h4>
-          <button class="toggle-btn off" id="toggleButton<%= i %>" onclick="toggleChannel(<%= i %>)">Off</button>
-          <label>Volume:</label>
-          <input type="range" class="channel-slider" id="volume<%= i %>" min="0" max="1" step="0.01" oninput="adjustVolume(<%= i - 1 %>, this.value)">
-          <label>Panning:</label>
-          <input type="range" class="panning-slider" id="pan<%= i %>" min="-1" max="1" step="0.01" oninput="adjustPanning(<%= i - 1 %>, this.value)">
-        </div>
+      <% if (team && team.channels && team.channels.length > 0) { %>
+        <% team.channels.forEach(channelIndex => { %>
+          <% if (channelIndex > 0)  { %>
+            <div class="channel" id="channel<%= channelIndex %>">
+              <h4>Channel <%= channelIndex %></h4>
+              <button class="toggle-btn off" id="toggleButton<%= channelIndex %>" onclick="toggleChannel(<%= channelIndex %>)">Off</button>
+              <label>Volume:</label>
+              <input type="range" class="channel-slider" id="volume<%= channelIndex %>" min="0" max="1" step="0.01" oninput="adjustVolume(<%= channelIndex - 1 %>, this.value)">
+              <label>Panning:</label>
+              <input type="range" class="panning-slider" id="pan<%= channelIndex %>" min="-1" max="1" step="0.01" oninput="adjustPanning(<%= channelIndex - 1 %>, this.value)">
+            </div>
+          <% } %>
+        <% }); %>
+      <% } else { %>
+        <p>No channels assigned to your team.</p>
       <% } %>
+
     </div>
 
     <!-- Configuration Section -->

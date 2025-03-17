@@ -2,6 +2,7 @@ import random
 import socket
 import time
 import threading
+import json
 import numpy as np
 from pydub import AudioSegment
 
@@ -19,20 +20,21 @@ AUDIO_STREAMS = [
     {"file": "river.mp3", "address": "239.0.0.10", "port": 5019},
 ]
 
+# Define multicast group and port for receiving commands
 PING_ADDRESS = "239.0.0.11"
 PING_PORT = 5000
 
+# Define packet properties
 RTP_HEADER_SIZE = 12
 SAMPLE_RATE = 48000
 FRAME_SIZE = 960
 
-streaming_active = False  # Controls whether audio streams are running
-last_streaming_state = False  # Tracks last known state before stopping
-stream_threads = []  # Stores active streaming threads
+streaming_active = False  
+stream_threads = [] 
 
+STREAM_MAPPING = {i+1: AUDIO_STREAMS[i] for i in range(len(AUDIO_STREAMS))}
 
 def create_rtp_packet(payload, sequence_number, timestamp, ssrc=12345):
-    """Creates an RTP packet with a header."""
     header = bytearray(12)
     header[0] = 0x80
     header[1] = 0x7F
@@ -49,75 +51,91 @@ def create_rtp_packet(payload, sequence_number, timestamp, ssrc=12345):
 
     return header + payload
 
-
-def stream_audio(file, address, port):
-    """Streams an MP3 file over RTP."""
+def stream_audio(file, address, port, duration):
     global streaming_active
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
 
+    # Load and process the audio file
     audio = AudioSegment.from_mp3(file).set_frame_rate(SAMPLE_RATE).set_channels(1).set_sample_width(2)
-    audio = audio[:15000]  # First 15 seconds
+    file_duration = len(audio) / 1000  # Convert milliseconds to seconds
+
+    # Extend audio by looping if it is shorter than the required duration
+    if file_duration < duration:
+        num_repeats = int(duration / file_duration) + 1  # Ensure enough loops
+        audio = audio * num_repeats  # Concatenate copies of itself
+    audio = audio[:duration * 1000]  # Trim any excess audio beyond duration
+
     raw_audio = np.array(audio.get_array_of_samples(), dtype=np.int16).tobytes()
 
     sequence_number = 0
     timestamp = 0
+    start_time = time.perf_counter()
 
-    start_time = time.time()
-    while streaming_active and time.time() - start_time < 15:
-        for i in range(0, len(raw_audio), FRAME_SIZE * 2):
-            if not streaming_active:
-                break  # Stop immediately if ping received
+    print(f"Streaming {file} on {address}:{port} for {duration} seconds.")
 
-            frame = raw_audio[i:i + FRAME_SIZE * 2]
-            if len(frame) < FRAME_SIZE * 2:
-                break
+    frame_size_bytes = FRAME_SIZE * 2
+    num_frames = len(raw_audio) // frame_size_bytes
 
-            packet = create_rtp_packet(frame, sequence_number, timestamp)
-            sock.sendto(packet, (address, port))
+    frame_index = 0  # Track position in audio
 
-            sequence_number += 1
-            timestamp += FRAME_SIZE
+    while streaming_active and (time.perf_counter() - start_time < duration):
+        # Extract the next frame
+        start_byte = frame_index * frame_size_bytes
+        end_byte = start_byte + frame_size_bytes
 
-            time.sleep(FRAME_SIZE / SAMPLE_RATE)  # Real-time speed
+        if end_byte > len(raw_audio):  # If reaching the end, wrap around
+            frame_index = 0
+            start_byte = 0
+            end_byte = frame_size_bytes
+
+        frame = raw_audio[start_byte:end_byte]
+
+        if len(frame) < frame_size_bytes:
+            break  # Stop if the frame is incomplete (shouldn't happen with looping)
+
+        packet = create_rtp_packet(frame, sequence_number, timestamp)
+        sock.sendto(packet, (address, port))
+
+        sequence_number += 1
+        timestamp += FRAME_SIZE
+        frame_index += 1  # Move to next frame
+
+        next_send_time = start_time + ((sequence_number + 1) * FRAME_SIZE / SAMPLE_RATE)
+        while time.perf_counter() < next_send_time:
+            pass  # Sleep until it's time to send the next frame
 
     sock.close()
+    print(f"Streaming {file} stopped.")
+    streaming_active = False
 
 
-def start_streaming():
-    """Randomly selects and starts 0-4 streams."""
+def start_streams(selected_streams, duration):
     global stream_threads, streaming_active, last_streaming_state
     if streaming_active:
         print("Streaming already active.")
         return
 
     streaming_active = True
-    last_streaming_state = True  # Remember that we started streaming
-    selected_streams = random.sample(AUDIO_STREAMS, random.randint(0, 4))
 
     for stream in selected_streams:
-        thread = threading.Thread(target=stream_audio, args=(stream["file"], stream["address"], stream["port"]))
+        thread = threading.Thread(target=stream_audio, args=(stream["file"], stream["address"], stream["port"], duration))
         thread.start()
         stream_threads.append(thread)
 
-    print("Streaming started.")
-
-
 def stop_streaming():
-    """Stops all running streams."""
     global streaming_active, stream_threads, last_streaming_state
-    streaming_active = False
-    last_streaming_state = False  # Remember that we stopped streaming
+    streaming_active = False 
 
     for thread in stream_threads:
-        thread.join()  # Ensure all streaming threads stop
+        thread.join()  
     stream_threads = []
     print("Streaming stopped.")
 
 
-def listen_for_ping():
-    """Listens for a ping signal to start/stop streaming."""
+def listen_for_commands():
+    # Listen for commands
     global last_streaming_state
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -131,17 +149,27 @@ def listen_for_ping():
 
     while True:
         data, addr = sock.recvfrom(1024)
-        print(f"Ping received from {addr}")
+        try:
+            message = json.loads(data.decode("utf-8"))
+            command = message.get("command")
+            duration = int(message.get("duration", 15))
+            numbers = message.get("channels", [])
 
-        if streaming_active:
-            stop_streaming()
-        else:
-            # If last state was stopped, start streaming
-            if not last_streaming_state:
-                start_streaming()
-            else:
-                print("Streaming stopped due to timeout, waiting for another ping to restart.")
+            print(f"Received command: {command}, Channels: {numbers}, Duration: {duration}")
 
+            if command == "stop":
+                stop_streaming()
 
+            elif command == "start":
+                selected_streams = [STREAM_MAPPING[n] for n in numbers if n in STREAM_MAPPING]
+
+                if selected_streams:
+                    start_streams(selected_streams, duration)
+
+        except json.JSONDecodeError:
+            print(f"Invalid message received: {data}")
+
+        
+        
 if __name__ == "__main__":
-    listen_for_ping()
+    listen_for_commands()

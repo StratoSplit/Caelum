@@ -57,18 +57,23 @@ document.addEventListener("click", function (event) {
   }
 });
 
-// Send start/stop commands to the server for RTP streams.
 function sendAdminCommand() {
-  const action = document.getElementById("adminAction").value;
-  fetch("/admin/control-streams", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action })
-  })
-    .then(response => response.json())
-    .then(data => alert(data.message))
-    .catch(err => console.error("Error sending command:", err));
+    const action = document.getElementById("adminAction").value;
+    const duration = parseInt(document.getElementById("streamDuration").value) || 15;
+    const selectedChannels = [...document.querySelectorAll("input[name='channels']:checked")]
+        .map(cb => parseInt(cb.value));
+
+    if (action === "start" && selectedChannels.length === 0) {
+        return; // Ignore empty requests
+    }
+
+    fetch("/admin/control-streams", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, channels: selectedChannels, duration }),
+    }).catch(err => console.error("Error sending command:", err));
 }
+
 
 // Show a temporary notification message on-screen.
 function showNotification(message) {
@@ -343,10 +348,10 @@ events.forEach((event, index) => {
       // If this fires, it means we got no packets for X ms
       // => forcibly stop the stream on the client
       if (activeChannels[index]) {
-        console.log(`No packets on channel ${index + 1} for 50ms. Stopping stream...`);
+        console.log(`No packets on channel ${index + 1} for 200ms. Stopping stream...`);
         stopClientChannel(index);
       }
-    }, 50); // .05 seconds of inactivity => stop
+    }, 200); 
   });
 });
 
