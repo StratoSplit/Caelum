@@ -3,25 +3,94 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login</title>
-    <link rel="stylesheet" href="/stylesheets/style.css">
+    <title>Caelum Login</title>
+    <style>
+        :root {
+            --bg-color: #0a0a0a;
+            --container-bg: #141414;
+            --accent-color: #2563eb;
+            --text-color: #fff;
+            --border-color: #d5d5d5;
+            --input-bg: #1a1a1a;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-color);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-container {
+            background: var(--container-bg);
+            padding: 2.5rem;
+            border-radius: 16px;
+            width: 100%;
+            max-width: 380px;
+            margin: 1rem;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 
+                        0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        .title {
+            color: var(--text-color);
+            font-size: 28px;
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 2rem;
+            letter-spacing: -0.5px;
+        }
+
+        hanko-auth, hanko-profile {
+            --color: #f7f7f7;
+            --color-primary-hover: #1d4ed8;
+            --border-radius: 8px;
+            --font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            --background-color: var(--container-bg);
+            --box-shadow: none;
+            --color-text: var(--text-color);
+            --border-color: var(--border-color);
+            --input-background: var(--input-bg);
+            --color-error: #ef4444;
+            --color-headline: var(--text-color);
+            --content-background: var(--container-bg);
+            --success-background-color: #10b981;
+            --success-color: white;
+            --input-border-radius: 8px;
+            --button-border-radius: 8px;
+            --link-color: #60a5fa;
+            --headline-font-size: 1rem;
+            --headline-font-weight: 500;
+        }
+
+    </style>
 </head>
 <body>
     <div class="login-container">
-        <h2>Login</h2>
-        <form action="/login" method="POST">
-            <div class="form-group">
-                <label for="username">Username:</label>
-                <input type="text" id="username" name="username" required>
-            </div>
-            <div class="form-group">
-                <label for="password">Password:</label>
-                <input type="password" id="password" name="password" required>
-            </div>
-            <button type="submit">Login</button>
-        </form>
-
-        <p>Don't have an account? <a href="/register">Register here</a></p>
+        <h1 class="title">Caelum</h1>
+        <hanko-auth />
     </div>
+
+    <script type="module">
+        import { register } from "https://esm.run/@teamhanko/hanko-elements";
+        
+        try {
+            const { hanko } = await register("https://f7dbbf71-7f94-4302-854e-f55872f176b7.hanko.io");
+            hanko.onSessionCreated(() => {
+                document.location.href = "./";
+            });
+        } catch (error) {
+            console.error('Authentication error:', error);
+        }
+    </script>
 </body>
 </html>
