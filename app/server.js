@@ -62,7 +62,7 @@ async function validateToken(req, res, next) {
   }
 
   try {
-    const response = await fetch('https://f7dbbf71-7f94-4302-854e-f55872f176b7.hanko.io/sessions/validate', {
+    const response = await fetch('https://23f835c0-f746-4689-99bb-0dbd777def43.hanko.io/sessions/validate', {
       method: 'POST',
       headers: {
         Accept: 'application/json',
@@ -165,6 +165,20 @@ app.get('/', validateToken, async (req, res) => {
   }
 });
 
+// Debug route to check saved configurations
+app.get('/debug/configurations', async (req, res) => {
+  try {
+    const configurations = await db.collection('configurations').find().toArray();
+    res.json({
+      count: configurations.length,
+      configurations
+    });
+  } catch (error) {
+    console.error('Debug error:', error);
+    res.status(500).json({ error: 'Error retrieving configurations' });
+  }
+});
+
 // Save Configuration Route
 app.post('/save-configuration', validateToken, async (req, res) => {
   const { configName, configData } = req.body;
@@ -175,13 +189,19 @@ app.post('/save-configuration', validateToken, async (req, res) => {
   }
 
   try {
+    console.log('Saving configuration to database:', { 
+      userId, 
+      configName, 
+      configDataSample: JSON.stringify(configData).substring(0, 100) + '...' 
+    });
+
     // Include username from user data for better identification
     await db.collection('configurations').updateOne(
       { userId, configName },
       {
         $set: {
           userId,
-          username: req.user.username, // Add username for reference
+          username: req.user.username,
           configName,
           configData,
           updatedAt: new Date()
@@ -193,11 +213,10 @@ app.post('/save-configuration', validateToken, async (req, res) => {
       { upsert: true }
     );
 
-    console.log('Configuration saved:', { userId, configName, data: JSON.stringify(configData).substring(0, 100) + '...' });
     res.status(200).json({ message: 'Configuration saved successfully' });
   } catch (error) {
     console.error('Save configuration error:', error);
-    res.status(500).json({ error: 'Failed to save configuration' });
+    res.status(500).json({ error: 'Failed to save configuration: ' + error.message });
   }
 });
 

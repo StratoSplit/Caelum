@@ -165,24 +165,35 @@
   <script src="/client.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
-      // Initial setup for the configuration dropdown
-      await updateConfigurationDropdown();
-      
-      // Set up the dropdown change handler
-      const dropdown = document.getElementById('configurationsDropdown');
-      if (dropdown) {
-        dropdown.addEventListener('change', function() {
-          if (this.value) {
-            loadConfiguration(this.value);
+      // Initialize configuration dropdown once
+      if (typeof updateConfigurationDropdown === 'function') {
+        try {
+          await updateConfigurationDropdown();
+          console.log('Configuration dropdown initialized from index.ejs');
+          
+          // Set up the dropdown change handler
+          const dropdown = document.getElementById('configurationsDropdown');
+          if (dropdown) {
+            dropdown.addEventListener('change', function() {
+              // Only attempt to load if a real option is selected
+              if (this.value && this.selectedIndex > 0) {
+                console.log('Loading configuration from dropdown change:', this.value);
+                loadConfiguration(this.value);
+              }
+            });
           }
-        });
+        } catch (error) {
+          console.error('Error initializing dropdown:', error);
+        }
+      } else {
+        console.error('updateConfigurationDropdown function not found');
       }
     });
   </script>
   <script type="module">
     import { register } from 'https://esm.run/@teamhanko/hanko-elements';
 
-    const { hanko } = await register("https://f7dbbf71-7f94-4302-854e-f55872f176b7.hanko.io");
+    const { hanko } = await register("https://23f835c0-f746-4689-99bb-0dbd777def43.hanko.io");
 
     document.getElementById("logout-link").addEventListener("click", async (e) => {
         e.preventDefault();
