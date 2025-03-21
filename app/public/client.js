@@ -172,13 +172,14 @@ async function saveConfiguration() {
     masterVolume: parseFloat(document.getElementById('masterVolume').value),
     channels: Array.from({ length: 10 }, (_, i) => ({
       isActive: activeChannels[i],
-      volume: parseFloat(document.getElementById(`volume${i + 1}`).value),
-      pan: parseFloat(document.getElementById(`pan${i + 1}`).value),
+      volume: parseFloat(document.getElementById(`volume${i + 1}`).value || 0.5),
+      pan: parseFloat(document.getElementById(`pan${i + 1}`).value || 0),
       isMuted: mutedChannels[i]
     }))
   };
 
   try {
+    console.log('Saving configuration:', configName, config);
     const response = await fetch('/save-configuration', {
       method: 'POST',
       headers: {
@@ -190,49 +191,89 @@ async function saveConfiguration() {
       })
     });
 
-    const data = await response.json();
-    
     if (!response.ok) {
-      throw new Error(data.error || 'Failed to save configuration');
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to save configuration');
     }
 
+    const data = await response.json();
+    console.log('Save response:', data);
+    
     showNotification('Configuration saved successfully');
+    // Save locally too
+    savedConfigurations[configName] = config;
     await updateConfigurationDropdown();
   } catch (error) {
     console.error('Save configuration error:', error);
-    showNotification(error.message);
+    showNotification('Error saving configuration: ' + error.message);
   }
 }
 
 // Load Configuration
-function loadConfiguration(configName, config) {
-  if (!config) return;
+async function loadConfiguration(configName) {
+  try {
+    // Check if we already have it in memory
+    if (savedConfigurations[configName]) {
+      applyConfiguration(configName, savedConfigurations[configName]);
+      return;
+    }
+    
+    // Otherwise fetch from server
+    console.log('Fetching configuration:', configName);
+    const response = await fetch(`/get-configuration?name=${encodeURIComponent(configName)}`);
+    
+    if (!response.ok) {
+      throw new Error('Failed to load configuration');
+    }
+    
+    const config = await response.json();
+    console.log('Loaded configuration:', config);
+    
+    // Cache for future use
+    savedConfigurations[configName] = config;
+    applyConfiguration(configName, config);
+  } catch (error) {
+    console.error('Error loading configuration:', error);
+    showNotification('Error loading configuration');
+  }
+}
 
-  // Set master volume
-  document.getElementById('masterVolume').value = config.masterVolume;
-  adjustMasterVolume(config.masterVolume);
-
+// Function to apply a configuration to the UI
+function applyConfiguration(configName, config) {
   // Clear current state
   clearConfiguration();
 
+  // Set master volume
+  const masterVolumeControl = document.getElementById('masterVolume');
+  if (masterVolumeControl && config.masterVolume !== undefined) {
+    masterVolumeControl.value = config.masterVolume;
+    adjustMasterVolume(config.masterVolume);
+  }
+
   // Load channel configurations
-  config.channels.forEach((channel, index) => {
-    if (channel.isActive) {
-      toggleChannel(index + 1);
-      
-      const volumeSlider = document.getElementById(`volume${index + 1}`);
-      volumeSlider.value = channel.volume;
-      adjustVolume(index, channel.volume);
+  if (config.channels) {
+    config.channels.forEach((channel, index) => {
+      if (channel.isActive) {
+        toggleChannel(index + 1);
+        
+        const volumeSlider = document.getElementById(`volume${index + 1}`);
+        if (volumeSlider && channel.volume !== undefined) {
+          volumeSlider.value = channel.volume;
+          adjustVolume(index, channel.volume);
+        }
 
-      const panSlider = document.getElementById(`pan${index + 1}`);
-      panSlider.value = channel.pan;
-      adjustPanning(index, channel.pan);
+        const panSlider = document.getElementById(`pan${index + 1}`);
+        if (panSlider && channel.pan !== undefined) {
+          panSlider.value = channel.pan;
+          adjustPanning(index, channel.pan);
+        }
 
-      if (channel.isMuted) {
-        toggleMuteChannel(index + 1);
+        if (channel.isMuted) {
+          toggleMuteChannel(index + 1);
+        }
       }
-    }
-  });
+    });
+  }
 
   showNotification(`Configuration "${configName}" loaded`);
 }
@@ -240,26 +281,48 @@ function loadConfiguration(configName, config) {
 // Update Configuration Dropdown
 async function updateConfigurationDropdown() {
   const dropdown = document.getElementById('configurationsDropdown');
+  if (!dropdown) return;
+  
   dropdown.innerHTML = '<option value="">Select a configuration...</option>';
 
   try {
     const response = await fetch('/get-configurations');
-    if (response.ok) {
-      const configurations = await response.json();
-      configurations.forEach(configName => {
-        const option = document.createElement('option');
-        option.value = configName;
-        option.textContent = configName;
-        dropdown.appendChild(option);
-      });
-    } else {
-      showNotification("Failed to load configurations from server.");
+    if (!response.ok) {
+      throw new Error('Failed to fetch configurations');
     }
+    
+    const configurations = await response.json();
+    console.log('Available configurations:', configurations);
+    
+    configurations.forEach(configName => {
+      const option = document.createElement('option');
+      option.value = configName;
+      option.textContent = configName;
+      dropdown.appendChild(option);
+    });
   } catch (error) {
     console.error('Error loading configurations:', error);
-    showNotification("Error loading configurations from server.");
+    showNotification("Error loading configurations from server");
   }
 }
+
+// Initialize configurations when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize audio components
+  for (let i = 0; i < 10; i++) {
+    gainNodes[i].gain.value = 0;
+    panNodes[i].pan.value = 0;
+  }
+  
+  // Set master volume initial value
+  const masterControl = document.getElementById('masterVolume');
+  if (masterControl) {
+    masterControl.value = masterVolume;
+  }
+  
+  // Load configurations from server
+  updateConfigurationDropdown();
+});
 
 // Mute/Unmute a specific channel.
 function toggleMuteChannel(channelNumber) {
