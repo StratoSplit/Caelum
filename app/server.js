@@ -175,10 +175,14 @@ app.post('/save-configuration', validateToken, async (req, res) => {
   }
 
   try {
+    // Include username from user data for better identification
     await db.collection('configurations').updateOne(
       { userId, configName },
       {
         $set: {
+          userId,
+          username: req.user.username, // Add username for reference
+          configName,
           configData,
           updatedAt: new Date()
         },
@@ -189,7 +193,7 @@ app.post('/save-configuration', validateToken, async (req, res) => {
       { upsert: true }
     );
 
-    console.log('Configuration saved:', { userId, configName });
+    console.log('Configuration saved:', { userId, configName, data: JSON.stringify(configData).substring(0, 100) + '...' });
     res.status(200).json({ message: 'Configuration saved successfully' });
   } catch (error) {
     console.error('Save configuration error:', error);

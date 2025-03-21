@@ -57,23 +57,18 @@ document.addEventListener("click", function (event) {
   }
 });
 
+// Send start/stop commands to the server for RTP streams.
 function sendAdminCommand() {
-    const action = document.getElementById("adminAction").value;
-    const duration = parseInt(document.getElementById("streamDuration").value) || 15;
-    const selectedChannels = [...document.querySelectorAll("input[name='channels']:checked")]
-        .map(cb => parseInt(cb.value));
-
-    if (action === "start" && selectedChannels.length === 0) {
-        return; // Ignore empty requests
-    }
-
-    fetch("/admin/control-streams", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, channels: selectedChannels, duration }),
-    }).catch(err => console.error("Error sending command:", err));
+  const action = document.getElementById("adminAction").value;
+  fetch("/admin/control-streams", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action })
+  })
+    .then(response => response.json())
+    .then(data => alert(data.message))
+    .catch(err => console.error("Error sending command:", err));
 }
-
 
 // Show a temporary notification message on-screen.
 function showNotification(message) {
@@ -165,60 +160,104 @@ function clearConfiguration() {
   showNotification("Configuration cleared.");
 }
 
-// Save the current configuration (which channels are active, their volumes, pannings).
-function saveConfiguration() {
+// Save Configuration
+async function saveConfiguration() {
   const configName = document.getElementById('configName').value.trim();
   if (!configName) {
-    showNotification("Please enter a configuration name.");
+    showNotification('Please enter a configuration name');
     return;
   }
 
   const config = {
-    activeChannels: [...activeChannels],
-    volumes: activeChannels.map((isActive, index) =>
-      isActive ? getVolumeSliderValue(index) : 0
-    ),
-    pannings: activeChannels.map((isActive, index) =>
-      isActive ? getPanningSliderValue(index) : 0
-    ),
+    masterVolume: parseFloat(document.getElementById('masterVolume').value),
+    channels: Array.from({ length: 10 }, (_, i) => ({
+      isActive: activeChannels[i],
+      volume: parseFloat(document.getElementById(`volume${i + 1}`).value),
+      pan: parseFloat(document.getElementById(`pan${i + 1}`).value),
+      isMuted: mutedChannels[i]
+    }))
   };
 
-  savedConfigurations[configName] = config;
-  updateConfigurationDropdown();
-  showNotification(`Configuration "${configName}" saved.`);
+  try {
+    const response = await fetch('/save-configuration', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        configName,
+        configData: config
+      })
+    });
+
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to save configuration');
+    }
+
+    showNotification('Configuration saved successfully');
+    await updateConfigurationDropdown();
+  } catch (error) {
+    console.error('Save configuration error:', error);
+    showNotification(error.message);
+  }
 }
 
-// Load a saved configuration by name and apply it.
-function loadConfiguration(configName) {
-  const config = savedConfigurations[configName];
+// Load Configuration
+function loadConfiguration(configName, config) {
   if (!config) return;
+
+  // Set master volume
+  document.getElementById('masterVolume').value = config.masterVolume;
+  adjustMasterVolume(config.masterVolume);
 
   // Clear current state
   clearConfiguration();
 
-  // Restore channels, volumes, and pannings
-  config.activeChannels.forEach((isActive, index) => {
-    if (isActive) {
+  // Load channel configurations
+  config.channels.forEach((channel, index) => {
+    if (channel.isActive) {
       toggleChannel(index + 1);
-      document.getElementById(`volume${index + 1}`).value = config.volumes[index];
-      adjustVolume(index, config.volumes[index]);
-      document.getElementById(`pan${index + 1}`).value = config.pannings[index];
-      adjustPanning(index, config.pannings[index]);
+      
+      const volumeSlider = document.getElementById(`volume${index + 1}`);
+      volumeSlider.value = channel.volume;
+      adjustVolume(index, channel.volume);
+
+      const panSlider = document.getElementById(`pan${index + 1}`);
+      panSlider.value = channel.pan;
+      adjustPanning(index, channel.pan);
+
+      if (channel.isMuted) {
+        toggleMuteChannel(index + 1);
+      }
     }
   });
 
-  showNotification(`Configuration "${configName}" loaded.`);
+  showNotification(`Configuration "${configName}" loaded`);
 }
 
-// Update the configuration dropdown with saved configuration names.
-function updateConfigurationDropdown() {
+// Update Configuration Dropdown
+async function updateConfigurationDropdown() {
   const dropdown = document.getElementById('configurationsDropdown');
   dropdown.innerHTML = '<option value="">Select a configuration...</option>';
-  for (const configName in savedConfigurations) {
-    const option = document.createElement('option');
-    option.value = configName;
-    option.textContent = configName;
-    dropdown.appendChild(option);
+
+  try {
+    const response = await fetch('/get-configurations');
+    if (response.ok) {
+      const configurations = await response.json();
+      configurations.forEach(configName => {
+        const option = document.createElement('option');
+        option.value = configName;
+        option.textContent = configName;
+        dropdown.appendChild(option);
+      });
+    } else {
+      showNotification("Failed to load configurations from server.");
+    }
+  } catch (error) {
+    console.error('Error loading configurations:', error);
+    showNotification("Error loading configurations from server.");
   }
 }
 
@@ -348,10 +387,10 @@ events.forEach((event, index) => {
       // If this fires, it means we got no packets for X ms
       // => forcibly stop the stream on the client
       if (activeChannels[index]) {
-        console.log(`No packets on channel ${index + 1} for 200ms. Stopping stream...`);
+        console.log(`No packets on channel ${index + 1} for 50ms. Stopping stream...`);
         stopClientChannel(index);
       }
-    }, 200); 
+    }, 50); // .05 seconds of inactivity => stop
   });
 });
 
