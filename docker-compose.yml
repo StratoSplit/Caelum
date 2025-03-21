@@ -1,15 +1,11 @@
 services:
-  audio_dashboard:
-    image: node:14
+  app:
+    build: ./app
     working_dir: /usr/src/app
     volumes:
       - ./app:/usr/src/app
-    command: node server.js
+      - /usr/src/app/node_modules
     ports:
-      - "8000:8000"
-
-  audio_stream:
-    build: ./audio_stream
-    working_dir: /usr/src/audio_stream
-    volumes:
-      - ./audio_stream:/usr/src/audio_stream
+      - "443:443"
+    environment:
+      - NODE_ENV=production
