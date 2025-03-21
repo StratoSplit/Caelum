@@ -19,8 +19,8 @@
       <button class="nav-btn blue-btn" onclick="muteAll()">Mute All</button>
       <button class="nav-btn blue-btn" onclick="cancelMute()">Cancel Mute</button>
       <button class="nav-btn clear-btn" onclick="clearConfiguration()">Clear Configuration</button>
-      <button class="nav-btn">Settings</button>
-      <a href="/logout" class="nav-btn red-btn">Log Out</a>
+      <a href="/profile" class="nav-btn">Settings</a>
+      <a href="#" id="logout-link" class="nav-btn red-btn">Log Out</a>
     </div>
   </nav>
 
@@ -163,5 +163,44 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="/client.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      await updateConfigurationDropdown();
+    });
+
+    async function loadConfigurationFromServer() {
+      const dropdown = document.getElementById('configurationsDropdown');
+      const configName = dropdown.value;
+      if (!configName) return;
+
+      try {
+        const response = await fetch(`/get-configuration?name=${encodeURIComponent(configName)}`);
+        if (response.ok) {
+          const config = await response.json();
+          loadConfiguration(configName, config);
+        } else {
+          showNotification("Failed to load configuration from server.");
+        }
+      } catch (error) {
+        console.error('Error loading configuration:', error);
+        showNotification("Error loading configuration from server.");
+      }
+    }
+  </script>
+  <script type="module">
+    import { register } from 'https://esm.run/@teamhanko/hanko-elements';
+
+    const { hanko } = await register("https://23f835c0-f746-4689-99bb-0dbd777def43.hanko.io");
+
+    document.getElementById("logout-link").addEventListener("click", async (e) => {
+        e.preventDefault();
+        try {
+            await hanko.user.logout();
+            document.location.href = "/login";
+        } catch (error) {
+            console.error('Logout error:', error);
+        }
+    });
+</script>
 </body>
 </html>
