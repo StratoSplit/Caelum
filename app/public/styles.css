@@ -189,19 +189,26 @@ body {
 }
 
 /* Admin Panel Overlay */
+
 .admin-panel {
-  position: fixed; /* Make it float over other elements */
-  top: 50%; /* Center vertically */
-  left: 50%; /* Center horizontally */
-  transform: translate(-50%, -50%); /* Proper centering */
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   background-color: white;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
   padding: 20px;
   border-radius: 8px;
-  z-index: 1000; /* Ensure it appears above everything */
-  width: 600px;
-  display: none; /* Initially hidden */
+  z-index: 1000;
+  width: 90vw;
+  max-width: 1000px;
+  max-height: 90vh;
+  display: none;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
+
 
 /* Darken background when admin panel is active */
 .overlay-active::before {
@@ -280,3 +287,114 @@ body {
   opacity: 0;
 }
 
+
+
+
+/* === Admin Panel Tabs Enhancements === */
+.admin-tabs {
+  display: flex;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  border-bottom: 2px solid #ddd;
+  padding-bottom: 0.5rem;
+}
+
+.tab-btn {
+  background-color: #f1f5f9;
+  border: 1px solid #ccc;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 14px;
+  color: #333;
+  transition: background-color 0.2s ease;
+}
+
+.tab-btn:hover {
+  background-color: #e2e8f0;
+}
+
+.admin-tab-content {
+  background-color: #fff;
+  padding: 1rem 1.25rem;
+  border: 1px solid #ccc;
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  margin-bottom: 1rem;
+}
+
+.admin-tab-content h2 {
+  font-size: 1.4rem;
+  margin-bottom: 0.75rem;
+  color: #222;
+}
+
+.admin-tab-content h4 {
+  margin-top: 1.5rem;
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: #333;
+}
+
+.admin-tab-content form {
+  margin-bottom: 1rem;
+}
+
+.admin-tab-content input[type="text"],
+.admin-tab-content input[type="email"],
+.admin-tab-content input[type="number"],
+.admin-tab-content select {
+  padding: 0.5rem 0.75rem;
+  margin-top: 0.3rem;
+  margin-bottom: 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 14px;
+  width: 250px;
+  display: block;
+}
+
+.admin-tab-content button {
+  background-color: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  margin-top: 0.5rem;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s ease;
+}
+
+.admin-tab-content button:hover {
+  background-color: #1d4ed8;
+}
+
+.inline-flex {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.admin-content-wrapper {
+  overflow-y: auto;
+  flex: 1;
+  padding-right: 10px;
+}
+
+.team-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+  margin-top: 1rem;
+}
+
+.team-grid .left-column,
+.team-grid .right-column {
+  flex: 1;
+  min-width: 300px;
+}

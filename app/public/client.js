@@ -14,7 +14,6 @@ let masterVolume = 0.5;
 
 // Timers to remove the traffic highlight after inactivity
 let flashTimers = {};
-let channelInactivityTimers = {};
 
 // Initialize the AudioWorklet for a specific channel (index).
 async function initializeAudioWorklet(streamIndex) {
@@ -38,7 +37,7 @@ function toggleAdminPanel() {
 
   if (panel.style.display === "none" || panel.style.display === "") {
     panel.style.display = "block";
-    body.classList.add("overlay-active"); // Dark background
+    body.classList.add("overlay-active");
   } else {
     panel.style.display = "none";
     body.classList.remove("overlay-active");
@@ -133,12 +132,10 @@ function toggleChannel(channelNumber) {
     const activeChannelItem = document.getElementById(`activeChannel${channelNumber}`);
     
     if (!toggleButton) {
-      console.warn(`Toggle button for channel ${channelNumber} not found`);
       return;
     }
     
     if (!activeChannelItem) {
-      console.warn(`Active channel item for channel ${channelNumber} not found`);
       return;
     }
     
@@ -173,6 +170,19 @@ function toggleChannel(channelNumber) {
 function clearConfiguration() {
   activeChannels.forEach((isActive, index) => {
     if (isActive) {
+      // Unmute all channels
+      mutedChannels.forEach((isMuted, index) => {
+      if (isMuted) {
+        const muteButton = document.querySelector(`#activeChannel${index + 1} .mute-btn`);
+        if (muteButton) {
+          gainNodes[index].gain.value = masterVolume * getVolumeSliderValue(index);
+          muteButton.textContent = "Mute";
+          muteButton.classList.remove("muted");
+        }
+        mutedChannels[index] = false;
+      }
+    });
+
       // Stop the audio stream
       stopStream(index);
       const toggleButton = document.getElementById(`toggleButton${index + 1}`);
@@ -195,16 +205,12 @@ function clearConfiguration() {
     const volumeSlider = document.getElementById(`volume${index + 1}`);
     if (volumeSlider) {
       volumeSlider.value = 0.5;
-    } else {
-      console.warn(`Volume slider for channel ${index + 1} not found.`);
-    }
+    } 
 
     const panSlider = document.getElementById(`pan${index + 1}`);
     if (panSlider) {
       panSlider.value = 0;
-    } else {
-      console.warn(`Panning slider for channel ${index + 1} not found.`);
-    }
+    } 
 
     gainNodes[index].gain.value = masterVolume * 0.5;
     panNodes[index].pan.value = 0;
@@ -414,9 +420,6 @@ function applyConfiguration(configName, config) {
           
           console.log(`Processing channel ${channelNumber} (isActive: ${channel.isActive})`);
           
-          // Skip inactive channels
-          if (!channel.isActive) return;
-          
           // Skip out-of-range channels
           if (channelIndex < 0 || channelIndex >= 10) {
             console.warn(`Channel index out of range: ${channelIndex}`);
@@ -441,14 +444,15 @@ function applyConfiguration(configName, config) {
           if (!panSlider) {
             console.warn(`Panning slider for channel ${channelNumber} not found.`);
           }
-
+    
+    if (channel.isActive) {
           console.log(`Activating channel ${channelNumber}`);
           
           // Activate the channel if it's not already active
           if (!activeChannels[channelIndex]) {
             toggleChannel(channelNumber);
           }
-          
+          }
           // Set volume if the slider exists
           if (volumeSlider && channel.volume !== undefined) {
             console.log(`Setting volume for channel ${channelNumber}:`, channel.volume);
@@ -657,44 +661,38 @@ const events = [
 
 events.forEach((event, index) => {
   socket.on(event, (data) => {
-    const audioData = Uint8Array.from(atob(data), c => c.charCodeAt(0));
-    const pcmData = new Float32Array(audioData.length / 2);
-    const dataView = new DataView(audioData.buffer);
+  if (!data || typeof data !== 'string') return;
 
-    // Convert 16-bit PCM to Float32
-    for (let i = 0; i < pcmData.length; i++) {
-      pcmData[i] = dataView.getInt16(i * 2, true) / 32768;
-    }
+  // Prevents forwarding duplicate or stale packets
+  const audioData = Uint8Array.from(atob(data), c => c.charCodeAt(0));
+  const pcmData = new Float32Array(audioData.length / 2);
+  const dataView = new DataView(audioData.buffer);
 
-    // Send PCM to the AudioWorklet if channel is ON
-    if (audioWorkletNodes[index]) {
-      audioWorkletNodes[index].port.postMessage(pcmData);
-    }
+  for (let i = 0; i < pcmData.length; i++) {
+    pcmData[i] = dataView.getInt16(i * 2, true) / 32768;
+  }
 
-    // If channel is OFF, highlight it in yellow for 1 second
-    highlightTraffic(index + 1);
+  // Drop silent packets (optional safety)
+  const isSilence = pcmData.every(sample => sample === 0);
+  if (!isSilence && audioWorkletNodes[index]) {
+    audioWorkletNodes[index].port.postMessage(pcmData);
+  }
 
-    clearTimeout(channelInactivityTimers[index]);
-    channelInactivityTimers[index] = setTimeout(() => {
-      // If this fires, it means we got no packets for X ms
-      // => forcibly stop the stream on the client
-      if (activeChannels[index]) {
-        console.log(`No packets on channel ${index + 1} for 50ms. Stopping stream...`);
-        stopClientChannel(index);
-      }
-    }, 50); // .05 seconds of inactivity => stop
+  highlightTraffic(index + 1);
+
+
   });
 });
 
 // Highlight an OFF channel in yellow if it receives RTP traffic.
 function highlightTraffic(channelNumber) {
   const button = document.getElementById(`toggleButton${channelNumber}`);
-  if (!button || button.classList.contains("on")) return; // Only highlight if OFF
+  const channelIndex = channelNumber - 1;
 
-  // Turn it yellow
+  if (!button || activeChannels[channelIndex]) return; 
+
   button.classList.add("traffic");
 
-  // Remove yellow after 1 second if no new packets arrive
   clearTimeout(flashTimers[channelNumber]);
   flashTimers[channelNumber] = setTimeout(() => {
     button.classList.remove("traffic");

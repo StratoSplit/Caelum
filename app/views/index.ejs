@@ -1,209 +1,403 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Audio Configuration</title>
+  <html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <title>Operator Audio Console</title>
   <link rel="stylesheet" href="/styles.css">
-</head>
-<body>
-  <!-- Top Navigation Bar -->
-  <nav class="navbar">
-    <div class="nav-left">
-      <button class="nav-btn">File</button>
-      <button class="nav-btn">Tools</button>
-      <button class="nav-btn">Circuits</button>
-      <button class="nav-btn">Help</button>
-      <button id="adminButton" class="nav-btn" onclick="toggleAdminPanel()">Admin</button>
-    </div>
-    <div class="nav-right">
-      <button class="nav-btn blue-btn" onclick="muteAll()">Mute All</button>
-      <button class="nav-btn blue-btn" onclick="cancelMute()">Cancel Mute</button>
-      <button class="nav-btn clear-btn" onclick="clearConfiguration()">Clear Configuration</button>
-      <a href="/profile" class="nav-btn">Settings</a>
-      <a href="#" id="logout-link" class="nav-btn red-btn">Log Out</a>
-    </div>
-  </nav>
 
-  <!-- Admin Panel (Initially Hidden) -->
-  <div id="adminPanel" class="admin-panel" style="display: none;">
-    <h2>Stream Controls</h2>
+  <style>
+  .team-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2rem;
+    margin-top: 1rem;
+  }
 
-    <!-- Channel Selection -->
-    <h4>Channel Selection</h4>
-    <% for (let i = 1; i <= 10; i++) { %>
-      <div class="channel-selection">
-        <label>
-          <input type="checkbox" name="channels" value="<%=i%>"> Channel <%= i %>
-        </label>
+  .team-grid .left-column,
+  .team-grid .right-column {
+    width: 100%;
+  }
+
+  @media (min-width: 768px) {
+    .team-grid .left-column,
+    .team-grid .right-column {
+      width: 48%;
+    }
+  }
+  </style>
+  </head>
+  <body>
+    <!-- Top Navigation Bar -->
+    <nav class="navbar">
+      <div class="nav-left">
+        <% if (isAdmin) { %>
+        <button id="adminButton" class="nav-btn" onclick="toggleAdminPanel()">Admin</button>
+        <% } %>  
       </div>
-    <% } %>
+      <div class="nav-right">
+        <button class="nav-btn blue-btn" onclick="muteAll()">Mute All</button>
+        <button class="nav-btn blue-btn" onclick="cancelMute()">Cancel Mute</button>
+        <button class="nav-btn clear-btn" onclick="clearConfiguration()">Clear Configuration</button>
+        <a href="/profile" class="nav-btn">Settings</a>
+        <a href="#" id="logout-link" class="nav-btn red-btn">Logout</a>
+        </div>
+      </nav>
 
-    <!-- Stream Control -->
-    <label for="adminAction">Stream Command:</label>
-    <select id="adminAction">
-      <option value="start">Start</option>
-      <option value="stop">Stop</option>
-    </select>
+    <!-- Admin Panel -->
+    <div id="adminPanel" class="admin-panel" style="display: none;">
+      <div class="admin-tabs">
+        <button class="tab-btn" onclick="switchAdminTab('stream')">Stream Controls</button>
+        <button class="tab-btn" onclick="switchAdminTab('users')">User Management</button>
+        <button class="tab-btn" onclick="switchAdminTab('teams')">Team Management</button>
+        </div>
 
-    <!-- Duration Input (Only relevant for Start) -->
-    <label for="streamDuration">Duration(s):</label>
-    <input type="number" id="streamDuration" value="15" min="5" max="120">
-
-    <button onclick="sendAdminCommand()">Execute</button>
-
-    <br><br>
-    <h4>Assign Roles</h4>
-    <form action="/assign-role" method="POST">
-      <select name="userId">
-        <% users.forEach(user => { %>
-          <option value="<%= user._id %>"><%= user.username %> (<%= user.role %>)</option>
-        <% }) %>
-      </select>
-      <select name="role">
-        <option value="user">User</option>
-        <option value="admin">Admin</option>
-      </select>
-      <button type="submit">Assign Role</button>
-    </form>
-    <br>
-
-    <h4>Assign User to Team</h4>
-    <form action="/assign-team" method="POST">
-      <select name="userId">
-        <% users.forEach(user => { %>
-          <option value="<%= user._id %>"><%= user.username %></option>
-        <% }) %>
-      </select>
-      <select name="teamId">
-        <% teams.forEach(team => { %>
-          <option value="<%= team._id %>"><%= team.name %></option>
-        <% }) %>
-      </select>
-      <button type="submit">Assign Team</button>
-    </form>
-
-    <br>
-    <h4>Assign Channels to Team</h4>
-    <form action="/assign-numbers" method="POST">
-      <select name="teamId">
-        <% teams.forEach(team => { %>
-          <option value="<%= team._id %>"><%= team.name %></option>
-        <% }) %>
-      </select>
-        <% for (let i = 1; i <= 10; i++) { %>
-          <label class="inline-flex items-center">
-            <input type="checkbox" name="numbers" value="<%= i %>" class="form-checkbox">
-            <span class="ml-2"><%= i %></span>
-          </label>
+      <!-- Stream Controls -->
+      <div id="tab-stream" class="admin-tab-content">
+        <h2>Stream Controls</h2>
+        <h4>Channel Selection</h4>
+        <!-- Display channels on admins team -->
+        <% if (team && Array.isArray(team.channels) && team.channels.length > 0) { %>
+          <% team.channels.forEach(channel => { %>
+            <div class="channel-selection">
+              <label>
+              <input type="checkbox" name="channels" value="<%= channel %>"> Channel <%= channel %>
+              </label>
+            </div>
+          <% }) %>
+        <% } else { %>
+          <p>No channels assigned to team.</p>
         <% } %>
-        <button type="submit">Assign Channels</button>
-    </form>
-  </div>
-  
-
-
-  </div>
-
-  <!-- Main Container -->
-  <div class="container">
-    <!-- Master Volume Control -->
-    <div class="master-speaker">
-      <h3>Master Volume</h3>
-      <label>Volume:</label>
-      <input type="range" id="masterVolume" min="0" max="1" step="0.01" oninput="adjustMasterVolume(this.value)">
+        <br>
+        <label for="adminAction">Stream Command:</label>
+        <select id="adminAction">
+          <option value="start">Start</option>
+          <option value="stop">Stop</option>
+        </select>
+      <label for="streamDuration">Duration(s):</label>
+      <input type="number" id="streamDuration" value="15" min="5" max="120">
+      <button onclick="sendAdminCommand()">Execute</button>
     </div>
 
-    <!-- Channel Controls Panel -->
-    <div class="channel-sliders">
-      <% if (team && team.channels && team.channels.length > 0) { %>
-        <% team.channels.forEach(channelIndex => { %>
-          <% if (channelIndex > 0)  { %>
-            <div class="channel" id="channel<%= channelIndex %>">
-              <h4>Channel <%= channelIndex %></h4>
-              <button class="toggle-btn off" id="toggleButton<%= channelIndex %>" onclick="toggleChannel(<%= channelIndex %>)">Off</button>
-              <label>Volume:</label>
-              <input type="range" class="channel-slider" id="volume<%= channelIndex %>" min="0" max="1" step="0.01" oninput="adjustVolume(<%= channelIndex - 1 %>, this.value)">
-              <label>Panning:</label>
-              <input type="range" class="panning-slider" id="pan<%= channelIndex %>" min="-1" max="1" step="0.01" oninput="adjustPanning(<%= channelIndex - 1 %>, this.value)">
-            </div>
-          <% } %>
-        <% }); %>
-      <% } else { %>
-        <p>No channels assigned to your team.</p>
-      <% } %>
-
+    <!-- User Management -->
+    <div id="tab-users" class="admin-tab-content" style="display: none;">
+      <h2>User Management</h2>
+      <h4>Assign Roles</h4>
+      <form action="/assign-role" method="POST">
+        <select name="userId">
+          <% users.forEach(user => { %>
+            <option value="<%= user._id %>"><%= user.username %> (<%= user.role %>)</option>
+          <% }) %>
+        </select>
+        <select name="role">
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
+        </select>
+        <button type="submit">Assign Role</button>
+      </form>
+      <h4>Register New User</h4>
+      <form id="newUserForm">
+        <input type="text" name="username" placeholder="Username" required />
+        <input type="email" name="email" placeholder="Email" required />
+        <button type="submit">Create User</button>
+      </form>
     </div>
 
-    <!-- Configuration Section -->
-    <div class="config-section boxed">
-      <div class="active-channels-list">
-        <h3>Active Channels</h3>
-        <div id="activeChannelsContainer" class="active-channels-space">
-          <% for (let i = 1; i <= 10; i++) { %>
-            <div id="activeChannel<%= i %>" class="active-channel" style="display: none;">
-              <span>Channel <%= i %></span>
-              <button class="mute-btn" onclick="toggleMuteChannel(<%= i %>)">Mute</button>
-            </div>
-          <% } %>
+    <!-- Team Management -->
+    <div id="tab-teams" class="admin-tab-content" style="display: none;">
+      <h2>Team Management</h2>
+      <div class="team-grid">
+        <div class="left-column">
+          <h4>Assign User to Team</h4>
+          <form action="/assign-team" method="POST">
+            <select name="userId">
+              <!-- List each user in the dropdown -->
+              <% users.forEach(user => { %>
+                <option value="<%= user._id %>"><%= user.username %></option>
+              <% }) %>
+            </select>
+            <!-- List each team in the drop down -->
+            <select name="teamId">
+              <% teams.forEach(teamOption => { %>
+                <option value="<%= teamOption._id %>" <%= team && team._id.toString() === teamOption._id.toString() ? "selected" : "" %>>
+                  <%= teamOption.name %>
+                </option>
+              <% }) %>
+            </select>
+            <button type="submit">Assign Team</button>
+          </form>
+          <h4>Assign Channels to Team</h4>
+          <form action="/assign-numbers" method="POST">
+            <select name="teamId">
+              <!-- List each team in the dropdown -->
+              <% teams.forEach(teamOption => { %>
+                <option value="<%= teamOption._id %>" <%= team && team._id.toString() === teamOption._id.toString() ? "selected" : "" %>>
+                  <%= teamOption.name %>
+                </option>
+              <% }) %>
+            </select>
+            <!-- List each channel in the dropdown -->
+            <% for (let i = 1; i <= 10; i++) { %>
+              <label class="inline-flex items-center">
+                <input type="checkbox" name="numbers" value="<%= i %>" class="form-checkbox">
+                <span class="ml-2"><%= i %></span>
+              </label>
+            <% } %>
+            <button type="submit">Assign Channels</button>
+          </form>
+          </div>
+          <div class="right-column">
+            <h4>Create New Team</h4>
+            <form id="createTeamForm">
+              <input type="text" name="teamName" placeholder="New Team Name" required />
+              <button type="submit">Create Team</button>
+            </form>
+            <h4>Delete Team</h4>
+            <form id="deleteTeamForm">
+              <select name="teamId" id="deleteTeamSelect">
+                <!-- List each team in the dropdown -->
+                <% teams.forEach(team => { %>
+                  <option value="<%= team._id %>"><%= team.name %></option>
+                <% }) %>
+              </select>
+              <button type="submit">Delete Team</button>
+            </form>
+          </div>
         </div>
       </div>
-
-      <!-- Save Configuration Section -->
-      <h3>Save Configuration</h3>
-      <input type="text" id="configName" class="config-input" placeholder="Configuration Name">
-      <button class="save-btn styled-save-btn" onclick="saveConfiguration()">Save Configuration</button>
-
-      <!-- Load Configuration Dropdown -->
-      <h3>Load Configuration</h3>
-      <select id="configurationsDropdown" class="config-select" onchange="loadConfiguration(this.value)">
-        <option value="">Select a configuration...</option>
-      </select>
     </div>
-  </div>
 
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="/client.js"></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', async () => {
-      // Initialize configuration dropdown once
-      if (typeof updateConfigurationDropdown === 'function') {
-        try {
-          await updateConfigurationDropdown();
-          console.log('Configuration dropdown initialized from index.ejs');
-          
-          // Set up the dropdown change handler
-          const dropdown = document.getElementById('configurationsDropdown');
-          if (dropdown) {
-            dropdown.addEventListener('change', function() {
-              // Only attempt to load if a real option is selected
-              if (this.value && this.selectedIndex > 0) {
-                console.log('Loading configuration from dropdown change:', this.value);
-                loadConfiguration(this.value);
-              }
-            });
-          }
-        } catch (error) {
+    <!-- Main Container -->
+    <div class="container">
+      <!-- Master Volume Control -->
+      <div class="master-speaker">
+        <h3>Master Volume</h3>
+        <label>Volume:</label>
+        <input type="range" id="masterVolume" min="0" max="1" step="0.01" oninput="adjustMasterVolume(this.value)">
+      </div>
+      <!-- Channel Controls Panel -->
+      <div class="channel-sliders">
+        <% if (team && team.channels && team.channels.length > 0) { %>
+          <% team.channels.forEach(channelIndex => { %>
+            <% if (channelIndex > 0)  { %>
+              <div class="channel" id="channel<%= channelIndex %>">
+                <h4>Channel <%= channelIndex %></h4>
+                <button class="toggle-btn off" id="toggleButton<%= channelIndex %>" onclick="toggleChannel(<%= channelIndex %>)">Off</button>
+                <label>Volume:</label>
+                <input type="range" class="channel-slider" id="volume<%= channelIndex %>" min="0" max="1" step="0.01" oninput="adjustVolume(<%= channelIndex - 1 %>, this.value)">
+                <label>Panning:</label>
+                <input type="range" class="panning-slider" id="pan<%= channelIndex %>" min="-1" max="1" step="0.01" oninput="adjustPanning(<%= channelIndex - 1 %>, this.value)">
+              </div>
+            <% } %>
+          <% }); %>
+        <% } else { %>
+          <p>No channels assigned to your team.</p>
+        <% } %>
+      </div>
+      <!-- Configuration Section -->
+      <div class="config-section boxed">
+        <div class="active-channels-list">
+          <h3>Active Channels</h3>
+          <div id="activeChannelsContainer" class="active-channels-space">
+            <% for (let i = 1; i <= 10; i++) { %>
+              <div id="activeChannel<%= i %>" class="active-channel" style="display: none;">
+                <span>Channel <%= i %></span>
+                <button class="mute-btn" onclick="toggleMuteChannel(<%= i %>)">Mute</button>
+              </div>
+            <% } %>
+          </div>
+        </div>
+        <!-- Save Configuration Section -->
+        <h3>Save Configuration</h3>
+        <input type="text" id="configName" class="config-input" placeholder="Configuration Name">
+        <button class="save-btn styled-save-btn" onclick="saveConfiguration()">Save Configuration</button>
+        <!-- Load Configuration Dropdown -->
+        <h3>Load Configuration</h3>
+        <select id="configurationsDropdown" class="config-select">
+          <option value="">Select a configuration...</option>
+        </select>
+        <button id="deleteConfigBtn" class="delete-btn red-btn" style="margin-top: 0.5rem;">Delete Selected Configuration</button>
+        </select>
+      </div>
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/client.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', async () => {
+      // Initialize configuration dropdown
+        if (typeof updateConfigurationDropdown === 'function') {
+          try {
+            await updateConfigurationDropdown();
+            console.log('Configuration dropdown initialized from index.ejs');
+
+            // Set up the dropdown change handler
+            const dropdown = document.getElementById('configurationsDropdown');
+            if (dropdown) {
+              dropdown.addEventListener('change', function() {
+                // Only attempt to load if a real option is selected
+                if (this.value && this.selectedIndex > 0) {
+                  console.log('Loading configuration from dropdown change:', this.value);
+                  loadConfiguration(this.value);
+                }
+              });
+            }
+          } catch (error) {
           console.error('Error initializing dropdown:', error);
+          }
+        } else {
+          console.error('updateConfigurationDropdown function not found');
+          }
+      });
+    </script>
+    <script type="module">
+      // import hanko for logout button
+      import { register } from 'https://esm.run/@teamhanko/hanko-elements';
+
+      document.addEventListener('DOMContentLoaded', async () => {
+        const { hanko } = await register("https://65b795cd-6728-46f7-9d07-55dbb42b3c8a.hanko.io");
+
+        const logoutLink = document.getElementById("logout-link");
+        if (logoutLink) {
+          logoutLink.addEventListener("click", async (e) => {
+            e.preventDefault();
+            try {
+              await hanko.user.logout();
+              document.location.href = "/login";
+            } catch (error) {
+              console.error("Logout error:", error);
+            }
+          });
         }
-      } else {
-        console.error('updateConfigurationDropdown function not found');
+      });
+    </script>
+    <script>
+      // function to switch through admin panel tabs and keep track of last tab
+      function switchAdminTab(tab) {
+        document.querySelectorAll('.admin-tab-content').forEach(div => {
+          div.style.display = 'none';
+        });
+        const activeTab = document.getElementById('tab-' + tab);
+        if (activeTab) {
+          activeTab.style.display = 'block';
+        }
       }
-    });
-  </script>
-  <script type="module">
-    import { register } from 'https://esm.run/@teamhanko/hanko-elements';
-
-    const { hanko } = await register("https://f7dbbf71-7f94-4302-854e-f55872f176b7.hanko.io");
-
-    document.getElementById("logout-link").addEventListener("click", async (e) => {
+      document.addEventListener('DOMContentLoaded', () => {
+        switchAdminTab('stream'); 
+      });
+    </script>
+    <script>
+      // Function to create a team
+      document.getElementById("createTeamForm")?.addEventListener("submit", async function(e) {
         e.preventDefault();
+        const name = e.target.teamName.value.trim();
+        // if no name do nothing
+        if (!name) return;
+
         try {
-            await hanko.user.logout();
-            document.location.href = "/login";
-        } catch (error) {
-            console.error('Logout error:', error);
+          const res = await fetch("/admin/create-team", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name })
+          });
+          const data = await res.json();
+
+          if (res.ok) {
+            location.reload(); 
+          } else {
+            console.error("Failed to create team:", data.error || data.message);
+          }
+        } catch (err) {
+          console.error("Team creation error:", err);
         }
-    });
-</script>
-</body>
+      });
+    </script>
+    <script>
+      // Function to delete a team
+      document.getElementById("deleteTeamForm")?.addEventListener("submit", async function(e) {
+        e.preventDefault();
+        const select = document.getElementById("deleteTeamSelect");
+        const teamId = select.value;
+        // If no team selected do nothing
+        if (!teamId) return;
+
+        try {
+          const res = await fetch("/admin/delete-team", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ teamId })
+          });
+
+          const data = await res.json();
+          if (res.ok) {
+            location.reload(); 
+          } else {
+            console.error("Failed to delete team:", data.error || data.message);
+          }
+        } catch (err) {
+          console.error("Error deleting team:", err);
+        }
+      });
+    </script>
+    <script>
+      // Function to send an admin command
+      const originalSendAdminCommand = window.sendAdminCommand;
+
+      window.sendAdminCommand = async function () {
+        try {
+        await originalSendAdminCommand();
+          toggleAdminPanel(); 
+        } catch (err) {
+          console.error("Admin command failed:", err);
+        }
+      };
+    </script>
+    <script>
+      // Function to clear configuration dropdown to default after clearing
+      const clearBtn = document.querySelector('.clear-btn');
+      clearBtn?.addEventListener('click', () => {
+        setTimeout(() => {
+          const dropdown = document.getElementById('configurationsDropdown');
+          if (dropdown) dropdown.selectedIndex = 0;
+        }, 100);
+      });
+    </script>
+    <script>
+      // Function to delete configuration
+      document.getElementById("deleteConfigBtn")?.addEventListener("click", async () => {
+        const dropdown = document.getElementById("configurationsDropdown");
+        const configName = dropdown?.value;
+
+        // if no config do nothing 
+        if (!configName) return;
+
+        try {
+          const res = await fetch(`/delete-configuration?name=${encodeURIComponent(configName)}`, {
+            method: "DELETE"
+          });
+
+          const data = await res.json();
+
+          if (!res.ok) {
+          throw new Error(data.error || "Failed to delete configuration.");
+          }
+
+          // Reset UI
+          clearConfiguration();
+
+          // Refresh dropdown and wait for it to be populated
+          await updateConfigurationDropdown();
+
+          // Ensure dropdown resets
+          const refreshedDropdown = document.getElementById("configurationsDropdown");
+          if (refreshedDropdown) {
+            refreshedDropdown.selectedIndex = 0;
+          }
+
+          showNotification(`Configuration "${configName}" deleted.`);
+        } catch (err) {
+          console.error("Delete error:", err);
+          showNotification("Error deleting configuration: " + err.message, false);
+        }
+      });
+    </script>
+  </body>
 </html>

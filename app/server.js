@@ -9,22 +9,25 @@ const connectToDatabase = require('./db');
 const cookieParser = require('cookie-parser');
 const dotenv = require('dotenv').config;
 const mongoose = require('mongoose');
-
+const session = require('express-session');
 const app = express();
 const HTTPS_PORT = 443;
 const UDP_TARGET = "239.0.0.11";
 const UDP_PORT = 5000;
 
+// Load SSL keys
 const options = {
   key: fs.readFileSync('key.pem'),
   cert: fs.readFileSync('cert.pem')
 };
 
+// Define multicast groups
 const multicastGroups = Array.from({ length: 10 }, (_, i) => ({
   address: `239.0.0.${i + 1}`,
   port: 5001 + i * 2
 }));
 
+// Create socket array
 const SOCKET_EVENTS = multicastGroups.map((_, i) => `audio-stream-${i + 1}`);
 
 // Set EJS as the view engine
@@ -38,15 +41,16 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(cookieParser());
 
 // Add body parsing middleware
-
 app.use(express.json());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
+// Connect to DB
 let db;
 connectToDatabase().then(database => {
   db = database;
 });
+
 
 async function validateToken(req, res, next) {
   let token = null;
@@ -62,7 +66,7 @@ async function validateToken(req, res, next) {
   }
 
   try {
-    const response = await fetch('https://f7dbbf71-7f94-4302-854e-f55872f176b7.hanko.io/sessions/validate', {
+    const response = await fetch('https://65b795cd-6728-46f7-9d07-55dbb42b3c8a.hanko.io/sessions/validate', {
       method: 'POST',
       headers: {
         Accept: 'application/json',
@@ -157,8 +161,9 @@ app.get('/', validateToken, async (req, res) => {
     
     const users = await db.collection('users').find().toArray();
     const teams = await db.collection('teams').find().toArray();
+    const isAdmin = user.role === 'admin';
 
-    res.render('index', { user, team, users, teams });
+    res.render('index', { user, team, users, teams, isAdmin });
   } catch (error) {
     console.error('Error retrieving user data:', error);
     res.status(500).render('error', { message: 'Internal server error' });
@@ -266,7 +271,7 @@ app.get('/get-configuration', validateToken, async (req, res) => {
   }
 });
 
-// Fix isAdmin middleware to avoid calling next() twice
+// Middleware to check if user is admin
 function isAdmin(req, res, next) {
   if (req.user.role !== 'admin') {
     return res.status(403).send('Access Denied');
@@ -274,6 +279,7 @@ function isAdmin(req, res, next) {
   next();
 }
 
+// Route to assign user role
 app.post('/assign-role' , async (req, res) => {
   const { userId, role } = req.body;
   await db.collection('users').updateOne(
@@ -283,6 +289,7 @@ app.post('/assign-role' , async (req, res) => {
   res.redirect('/');
 });
 
+// Route to assign user team
 app.post('/assign-team', async (req, res) => {
   const { userId, teamId } = req.body;
   await db.collection('users').updateOne(
@@ -292,6 +299,7 @@ app.post('/assign-team', async (req, res) => {
   res.redirect('/');
 });
 
+// Route to assign channels to teams
 app.post('/assign-numbers', async (req, res) => {
   const { teamId, numbers } = req.body;
   const channels = Object.values(numbers).map(Number);
@@ -302,6 +310,7 @@ app.post('/assign-numbers', async (req, res) => {
   res.redirect('/');
 });
 
+// Define server
 const server = https.createServer(options, app);
 const io = socketIo(server, {
   cors: {
@@ -310,6 +319,7 @@ const io = socketIo(server, {
   }
 });
 
+// Function to send stream generation command
 function sendCommand(command, channels = [], duration = 15) {
   const client = dgram.createSocket("udp4");
 
@@ -320,8 +330,10 @@ function sendCommand(command, channels = [], duration = 15) {
       console.error("Failed to disable multicast loopback:", err.message);
     }
 
+    // construct message to be parsed by generator
     const message = JSON.stringify({ command, channels, duration });
 
+    // send message to target
     client.send(message, UDP_PORT, UDP_TARGET, (err) => {
       if (err) console.error("Error sending message:", err);
       else console.log(`[${new Date().toISOString()}] Sent: ${message}`);
@@ -331,6 +343,7 @@ function sendCommand(command, channels = [], duration = 15) {
   });
 }
 
+// Route to create stream generation message 
 app.post("/admin/control-streams", (req, res) => {
   const { action, channels, duration } = req.body;
 
@@ -346,6 +359,95 @@ app.post("/admin/control-streams", (req, res) => {
   res.json({ message: `Command '${action}' sent successfully.` });
 });
 
+// Route to delete a config
+app.delete('/delete-configuration', validateToken, async (req, res) => {
+  const userId = req.user.userId;
+  const configName = req.query.name;
+
+  if (!configName) {
+    return res.status(400).json({ error: 'Configuration name is required' });
+  }
+
+  try {
+    const result = await db.collection('configurations').deleteOne({ userId, configName });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ error: 'Configuration not found or already deleted' });
+    }
+
+    res.status(200).json({ message: 'Configuration deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting configuration:', error);
+    res.status(500).json({ error: 'Failed to delete configuration' });
+  }
+});
+
+// Route to create a new team
+app.post('/admin/create-team', async (req, res) => {
+  try {
+    const { name } = req.body;
+    // if no name send err
+    if (!name || name.trim() === '') {
+      return res.status(400).json({ error: 'Team name is required.' });
+    }
+
+    const teamData = {
+      name: name.trim(),
+      channels: [],
+      createdAt: new Date()
+    };
+
+    const existing = await db.collection('teams').findOne({ name: teamData.name });
+
+    if (existing) {
+      return res.status(400).json({ message: 'Team already exists.' });
+    }
+
+    const result = await db.collection('teams').insertOne(teamData);
+    return res.status(200).json({ id: result.insertedId });
+  } catch (err) {
+    console.error('Error creating team:', err);
+    return res.status(500).json({ error: 'Failed to create team.' });
+  }
+});
+
+// Route to pull all teams from db
+app.get('/get-teams', async (req, res) => {
+  try {
+    const teams = await db.collection('teams').find().toArray();
+    res.json(teams);
+  } catch (error) {
+    console.error('Error fetching teams:', error);
+    res.status(500).json({ error: 'Failed to fetch teams' });
+  }
+});
+
+// Route to delete teams
+app.post('/admin/delete-team', async (req, res) => {
+  const { teamId } = req.body;
+
+  if (!teamId) {
+    return res.status(400).json({ error: 'Team ID is required.' });
+  }
+
+  try {
+    // Unassign all users from the team
+    await db.collection('users').updateMany(
+      { team: teamId },
+      { $unset: { team: "" } }
+    );
+
+    // Delete the team
+    await db.collection('teams').deleteOne({ _id: new mongoose.Types.ObjectId(teamId) });
+
+    res.status(200).json({ message: 'Team deleted successfully.' });
+  } catch (error) {
+    console.error('Error deleting team:', error);
+    res.status(500).json({ error: 'Failed to delete team.' });
+  }
+});
+
+// Function to start listening for audio packets on multicast
 function startRTPListener({ address, port }, streamEvent) {
   const socket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
 
@@ -360,6 +462,10 @@ function startRTPListener({ address, port }, streamEvent) {
   });
 }
 
+// Start listener for each multicast group
 multicastGroups.forEach((group, index) => startRTPListener(group, SOCKET_EVENTS[index]));
 
+// Start server
 server.listen(HTTPS_PORT, () => console.log(`HTTPS server running on port ${HTTPS_PORT}`));
+
+
