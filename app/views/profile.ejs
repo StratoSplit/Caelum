@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Caelum Profile</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --main-bg-color: #f4f4f4;
+            --nav-bg-color: #333;
+            --btn-primary: #3498db;
+            --btn-hover: #2980b9;
+            --btn-danger: #e74c3c;
+            --text-color: #333;
+            --text-secondary: #555;
+            --border-color: #ddd;
+            --font-primary: 'Inter', Arial, sans-serif;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-primary);
+            background-color: var(--main-bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 1rem;
+        }
+
+        .navbar {
+            background-color: var(--nav-bg-color);
+            padding: 1.25rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .nav-btn {
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 0.95rem;
+            padding: 0.75rem 1.25rem;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background 0.2s ease;
+        }
+
+        .nav-btn:hover {
+            background-color: #555;
+            border-radius: 4px;
+        }
+
+        .red-btn {
+            background-color: var(--btn-danger);
+            border: none;
+            padding: 0.75rem 1.25rem;
+            border-radius: 4px;
+            color: #fff;
+            text-decoration: none;
+            transition: background 0.2s ease;
+        }
+
+        .red-btn:hover {
+            background-color: #c0392b;
+        }
+
+        .profile-container {
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background-color: #fff;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        hanko-profile {
+            --font-family: var(--font-primary);
+            --color-primary: var(--btn-primary);
+            --color-primary-hover: var(--btn-hover);
+            --border-radius: 4px;
+            --background-color: #fff;
+            --box-shadow: none;
+            --color-text: var(--text-color);
+            --border-color: var(--border-color);
+            --input-background: var(--main-bg-color);
+            --color-error: var(--btn-danger);
+            --color-headline: var(--text-color);
+            --content-background: #fff;
+            --input-border-radius: 4px;
+            --button-border-radius: 4px;
+            --link-color: var(--btn-primary);
+            --headline-font-size: 1.125rem;
+            --headline-font-weight: 600;
+            --paragraph-line-height: 1.7;
+            --paragraph-font-size: 1rem;
+            display: block;
+        }
+
+        /* Enhanced text styles for better readability */
+        h1, h2, h3 {
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        p {
+            color: var(--text-secondary);
+            font-size: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        input, button {
+            font-family: var(--font-primary);
+            font-size: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-left">
+            <a href="/" class="nav-btn">Dashboard</a>
+        </div>
+        <div class="nav-right">
+            <a href="#" id="logout-link" class="red-btn">Logout</a>
+        </div>
+    </nav>
+
+    <div class="profile-container">
+        <hanko-profile />
+    </div>
+
+    <script type="module">
+        import { register } from 'https://esm.run/@teamhanko/hanko-elements';
+        const res = await fetch("/config");
+        const { hankoUrl } = await res.json();
+
+        const { hanko } = await register(hankoUrl);
+
+        document.getElementById("logout-link").addEventListener("click", async (e) => {
+            e.preventDefault();
+            try {
+                await hanko.user.logout();
+                document.location.href = "/login";
+            } catch (error) {
+                console.error('Logout error:', error);
+            }
+        });
+    </script>
+</body>
+</html>

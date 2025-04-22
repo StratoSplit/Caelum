@@ -10,7 +10,7 @@ describe('GET /', () => {
 
     beforeAll((done) => {
         server = http.createServer(app);
-        server.listen(8000, done);
+        server.listen(443, done);
     });
 
     afterAll((done) => {

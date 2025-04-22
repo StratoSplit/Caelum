@@ -8,3 +8,4 @@ app/key.pem
 app/.env
 app/package-lock.json
 app/package.json
+app/output.log
