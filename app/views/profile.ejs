@@ -140,8 +140,10 @@
 
     <script type="module">
         import { register } from 'https://esm.run/@teamhanko/hanko-elements';
+        const res = await fetch("/config");
+        const { hankoUrl } = await res.json();
 
-        const { hanko } = await register("https://65b795cd-6728-46f7-9d07-55dbb42b3c8a.hanko.io");
+        const { hanko } = await register(hankoUrl);
 
         document.getElementById("logout-link").addEventListener("click", async (e) => {
             e.preventDefault();
